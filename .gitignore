@@ -1,0 +1,12 @@
+*.img
+*.bin
+*.log
+*.bak
+*.backup
+*.tmp
+__pycache__/
+*.pyc
+.DS_Store
+secure-work/
+backup/
+SHA256SUMS*.txt
