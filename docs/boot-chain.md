@@ -32,7 +32,7 @@ ramdisk use init boot
 androidboot.slot_suffix=_a
 ```
 
-This is why the procedure treats `boot_a` and `init_boot_a` as different jobs: the kernel-side modification belonged to `boot_a`, while Magisk modified the generic ramdisk in `init_boot_a`.
+This is why `boot_a` and `init_boot_a` must not be confused: `boot_a` is the kernel-side boot image and should be backed up, while Magisk modifies the generic ramdisk in `init_boot_a` on this firmware.
 
 The captured TOC1/U-Boot area also contains the relevant implementation strings:
 

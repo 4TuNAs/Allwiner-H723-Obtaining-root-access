@@ -1,19 +1,19 @@
 # Allwinner H723 Android root access — H723-6621-V1.2
 
-This repository documents a **real rooting session** on an Android board based on **Allwinner H723 / sun50iw15p1**.
+A reproducible hardware/software guide based on a real rooting session on an Android board built around **Allwinner H723 / sun50iw15p1**.
 
-The board actually tested and photographed is **H723-6621-V1.2**. A board marked **H723-CY-4D308** looks very similar, but has **not** been verified here. Do not assume that its partition LBAs, Secure Storage contents, hashes, or boot images are identical.
+The **tested PCB is H723-6621-V1.2**. A board sold/marked as **H723-CY-4D308** looks very similar, but it has **not** been verified by this repository. Treat it as a different target until its GPT, boot layout and Secure Storage contents have been read and checked.
 
 > [!CAUTION]
-> Parts of this procedure write raw eMMC sectors. A wrong LBA, wrong image, power loss, or using values from a different firmware can brick the board. Read and verify your own board first. The public scripts are deliberately read-only/dry-run by default wherever practical.
+> This procedure includes raw eMMC writes. A wrong LBA, a wrong firmware image, or a power loss at the wrong moment can brick the board. The public scripts in this repository are deliberately conservative: they validate hashes/CRCs, default to read-only/dry-run behavior, and do not reboot automatically after critical writes.
 
 ## Tested board
 
-### UART area
+### UART location
 
 ![H723-6621-V1.2 UART location](images/h723-6621-v1.2-uart-location.jpg)
 
-The photo identifies the UART connector area. It does **not** prove the exact GND/TX/RX order. Do not infer pin order from wire colors; verify it on your own PCB.
+The photo marks the UART connector area. **It does not document the exact GND/TX/RX pin order. Do not infer pin order from wire colors.** Confirm it on your board before connecting a USB-UART adapter.
 
 UART settings used during the work:
 
@@ -29,18 +29,22 @@ no flow control
 
 ![H723-6621-V1.2 recovery USB ADB wiring](images/h723-6621-v1.2-usb-adb-wiring.jpg)
 
-This distinction is critical:
+The recovery connection is the important part that is easy to miss:
 
-- network/TCP ADB can be used while normal Android is running;
-- after `adb reboot recovery`, network ADB is no longer available on this board;
-- recovery ADB requires the **physical USB data connection** soldered to the USB-A connector/data lines shown in the photo;
-- UART remains connected in parallel for U-Boot/recovery logs and the raw eMMC tools.
+- network/TCP ADB works while normal Android is running;
+- after `adb reboot recovery`, **network ADB is gone** on this board;
+- recovery ADB requires a **physical USB data connection** soldered to the USB-A connector/data lines on the PCB;
+- keep UART connected in parallel for U-Boot/recovery logs and the raw-dump scripts.
 
-The photo also marks the +5 V/GND points used in the test setup. Do not connect two 5 V sources together unless you have verified the power path on your board.
+The second photo also marks the +5 V/GND points used in the test setup. Do not connect two 5 V sources together unless you have checked how your board is powered.
 
 ---
 
-## Verified boot/root chain
+## What was actually verified
+
+The test unit reported an H723/sun50iw15p1 platform, Android 14/API 34 and an A/B partition layout. The captured U-Boot environment and boot logs show active slot `_a`, `boot_a` as the kernel-side boot image, and `init_boot_a` as the source of the generic ramdisk (`ramdisk use init boot`).
+
+The successful chain was:
 
 ```text
 stock Android
@@ -48,11 +52,11 @@ stock Android
     | adb reboot recovery
     v
 recovery
-    |-- physical USB ADB
+    |-- physical USB ADB (soldered USB data connection)
     `-- UART 115200 8N1
     |
     v
-read + validate GPT
+read and validate GPT
     |
     v
 back up boot_a / init_boot_a / vendor_boot_a / vbmeta_a / misc / env_a
@@ -61,21 +65,15 @@ back up boot_a / init_boot_a / vendor_boot_a / vbmeta_a / misc / env_a
 read Allwinner Secure Storage
     |
     v
-add:
-    device_unlock=unlock
-    fastboot_status_flag=unlocked
-    |
-    v
+add device_unlock=unlock
+add fastboot_status_flag=unlocked
 rebuild CRCs + redundant copies
     |
     v
-safe raw write + per-block read-back + final full read-back
+safe raw write + per-block read-back + full read-back
     |
     v
 U-Boot AVB state: LOCKED/GREEN -> UNLOCKED/ORANGE
-    |
-    v
-separate kernel modification in boot_a
     |
     v
 Magisk patch of init_boot_a
@@ -91,31 +89,39 @@ flash init_boot_a
 Android -> magiskd -> su -> uid=0(root)
 ```
 
-### Important historical gap
+### Source-archive re-check
 
-A separate kernel modification inside `boot_a` was part of the successful session **after the Secure Storage unlock and before the final Magisk boot**. The exact original patch script/byte sequence has not been recovered from the available project material, so this repository does not invent one or replace it with KernelSU/APatch/random hex edits. See [`docs/kernel-patch-status.md`](docs/kernel-patch-status.md).
+The original working-directory archive (`platform-tools.rar`) was re-checked file by file after the first documentation pass. It does **not** contain a separate `boot_a` kernel-patch script or a patched `boot_a` image. An earlier draft of this README incorrectly described a separate kernel modification as a confirmed step; that claim has been removed.
 
-Everything else below is backed by recovered session scripts, UART evidence and/or the supplied binary captures.
+The reproducible sequence supported by the archived working files is: **unlock the Allwinner boot state through Secure Storage, verify `LOCKED/GREEN -> UNLOCKED/ORANGE`, then patch `init_boot_a` with Magisk and flash the patched `init_boot_a`.**
+
+The exact scripts found in the archive, their SHA-256 values, and which files were later reconstructed/hardened are listed in [`docs/session-script-inventory.md`](docs/session-script-inventory.md).
 
 ---
 
-## 1. Host setup
+# 1. Host setup
 
 Examples use Windows PowerShell because that is how the board was tested.
 
-Install Android Platform Tools, Python 3, a 3.3 V USB-UART adapter, then:
+Install:
+
+- Android Platform Tools (`adb.exe`)
+- Python 3
+- a USB-UART adapter capable of 3.3 V logic
+- `pyserial`
+- `pyusb`
 
 ```powershell
 python -m pip install -r requirements.txt
 ```
 
-For the Allwinner bootloader USB interface on Windows, PyUSB must be able to claim `1f3a:1010`; a libusb-compatible driver may be required.
+For the Allwinner bootloader interface on Windows, PyUSB must be able to claim USB device `1f3a:1010`. If Python cannot see it, a libusb-compatible driver may be required for that interface.
 
-Do not perform any raw write until UART works and backups exist.
+Do not start any raw-write step until you have working UART access and verified backups.
 
 ---
 
-## 2. Start in normal Android
+# 2. Start in normal Android
 
 Check ADB:
 
@@ -123,9 +129,9 @@ Check ADB:
 .\adb.exe devices -l
 ```
 
-Network ADB is acceptable **only at this stage**.
+Network ADB is acceptable **at this stage**. For example, if your normal Android ADB target is an IP address, you can still use it to request recovery.
 
-Save basic properties:
+Capture basic properties before changing anything:
 
 ```powershell
 .\adb.exe shell getprop ro.build.version.release
@@ -139,7 +145,7 @@ Save basic properties:
 .\adb.exe shell getprop > getprop-stock.txt
 ```
 
-Start UART capture before rebooting:
+Keep the UART adapter connected and start a boot-log capture before rebooting:
 
 ```powershell
 python .\scripts\uart_log_capture.py COM5 --out boot-before-unlock.log
@@ -149,21 +155,27 @@ Use your actual COM port.
 
 ---
 
-## 3. Enter recovery
+# 3. Enter recovery correctly
 
-From normal Android:
+Request recovery from the currently running Android:
 
 ```powershell
 .\adb.exe reboot recovery
 ```
 
-If normal Android is reached through TCP ADB, target it explicitly:
+If the normal Android connection is TCP ADB, an explicit target is safer:
 
 ```powershell
 .\adb.exe -s 192.168.x.x:5555 reboot recovery
 ```
 
-Once recovery starts, **do not wait for the old TCP endpoint to return**. Connect the physically soldered USB data wiring and check:
+On the tested unit, the UART log showed U-Boot finding `misc` and the `boot-recovery` request on the following boot.
+
+## Critical transport change
+
+Once recovery starts, **do not wait for the old network ADB endpoint to return**. It will not.
+
+Connect the physically soldered USB data connection shown in the board photo and check:
 
 ```powershell
 .\adb.exe devices -l
@@ -176,60 +188,70 @@ A helper is included:
 .\scripts\recovery_usb_adb.ps1 -Adb .\adb.exe -Target 192.168.x.x:5555
 ```
 
-It requests recovery from normal Android and then waits for a **non-network** ADB serial. Keep UART connected in parallel.
+The helper requests recovery from the normal-Android target, then deliberately waits for a **non-network** ADB serial so it does not accidentally reconnect to the old TCP target.
+
+Keep UART connected at the same time. The original raw-eMMC tools use the recovery UART shell.
 
 ---
 
-## 4. Discover the partition table instead of guessing
+# 4. Discover the partition table instead of guessing
 
-The original session read the first 34 sectors from the recovery UART shell. The hardened equivalent is:
+Do not start with `mmcblk0p5`, `p9`, etc. Those numbers came from **this** unit's GPT and must be rediscovered on another board/firmware.
+
+The original session read the first 34 eMMC sectors from the recovery UART shell. The hardened equivalent is:
 
 ```powershell
 python .\scripts\uart_dump.py COM5 --skip 0 --count 34 --out gpt34.bin
 ```
 
-Validate and parse it:
+Then validate and parse it:
 
 ```powershell
 python .\scripts\gpt_inspect.py .\gpt34.bin
 ```
 
-The parser verifies the MBR signature, `EFI PART`, GPT header CRC32, partition-array CRC32 and entry bounds.
+`gpt_inspect.py` verifies:
 
-For the supplied test-unit GPT:
+- MBR signature `55 aa`;
+- GPT signature `EFI PART`;
+- GPT header CRC32;
+- partition-entry-array CRC32;
+- entry bounds and sizes.
+
+For the supplied test-unit GPT the validation result is:
 
 ```text
-GPT header CRC32:       6ad342cd
-partition array CRC32:  534057f5
-entries:                29 x 128 bytes
+GPT header CRC32:        6ad342cd
+partition array CRC32:   534057f5
+partition entries:       29 x 128 bytes
 ```
 
-Key partitions on the tested `_a` slot:
+The complete verified partition map is in [`docs/partition-map.md`](docs/partition-map.md).
 
-| Partition | Node on test unit | First LBA | Sectors | Size |
-|---|---|---:|---:|---:|
-| `env_a` | `mmcblk0p3` | 204800 | 512 | 256 KiB |
-| `boot_a` | `mmcblk0p5` | 205824 | 131072 | 64 MiB |
-| `vendor_boot_a` | `mmcblk0p7` | 467968 | 65536 | 32 MiB |
-| `init_boot_a` | `mmcblk0p9` | 599040 | 16384 | 8 MiB |
-| `misc` | `mmcblk0p12` | 5874688 | 32768 | 16 MiB |
-| `vbmeta_a` | `mmcblk0p13` | 5907456 | 256 | 128 KiB |
+The partitions that matter most to this procedure on the tested `_a` slot are:
 
-The complete validated map is in [`docs/partition-map.md`](docs/partition-map.md).
+| Partition | Linux node on tested unit | First LBA | Sectors | Size | Why it matters |
+|---|---|---:|---:|---:|---|
+| `env_a` | `mmcblk0p3` | 204800 | 512 | 256 KiB | confirms slot/boot environment |
+| `boot_a` | `mmcblk0p5` | 205824 | 131072 | 64 MiB | contains the kernel-side boot image |
+| `vendor_boot_a` | `mmcblk0p7` | 467968 | 65536 | 32 MiB | split Android boot layout backup |
+| `init_boot_a` | `mmcblk0p9` | 599040 | 16384 | 8 MiB | generic ramdisk; Magisk target |
+| `misc` | `mmcblk0p12` | 5874688 | 32768 | 16 MiB | recovery/bootloader boot commands |
+| `vbmeta_a` | `mmcblk0p13` | 5907456 | 256 | 128 KiB | AVB metadata; backup before experiments |
 
-Generate read-only backup commands from **your own GPT**:
+You can have the parser print read-only backup commands from **your** GPT:
 
 ```powershell
 python .\scripts\gpt_inspect.py .\gpt34.bin --dump-plan COM5
 ```
 
-Do not copy the tested unit's `mmcblk0pN` numbers to another firmware without parsing its GPT first.
-
 ---
 
-## 5. Why `boot_a` and `init_boot_a` are different jobs
+# 5. Why these partitions were selected
 
-Recovered `env_a` data contains:
+The choice was not based only on Android conventions.
+
+The recovered `env_a` image contains:
 
 ```text
 slot_suffix=_a
@@ -248,18 +270,18 @@ pubkey vbmeta_a valid
 
 Therefore:
 
-- `_a` was the active slot;
-- `boot_a` carried the kernel-side boot image that was modified separately;
-- the generic ramdisk came from `init_boot_a`, making `init_boot_a` the Magisk target;
-- `vbmeta_a`, `vendor_boot_a`, `misc` and `env_a` are important recovery/reference backups.
+- active slot was `_a`;
+- `boot_a` is the kernel-side boot image and was backed up as a recovery/reference image;
+- the generic ramdisk came from `init_boot_a`, so that is the correct Magisk target;
+- `vbmeta_a`, `vendor_boot_a`, `misc` and `env_a` are important recovery/reference backups even though the final Magisk flash only wrote `init_boot_a`.
 
-More detail: [`docs/boot-chain.md`](docs/boot-chain.md).
+See [`docs/boot-chain.md`](docs/boot-chain.md).
 
 ---
 
-## 6. Back up stock partitions
+# 6. Back up the stock partitions
 
-Use LBAs from **your GPT**. Example for the tested `boot_a`:
+Use the LBAs printed by **your** GPT. Example for the tested `boot_a`:
 
 ```powershell
 python .\scripts\uart_dump.py COM5 `
@@ -279,42 +301,48 @@ misc
 vbmeta_a
 ```
 
-Create hashes:
+Generate a hash manifest:
 
 ```powershell
 .\scripts\sha256_manifest.ps1 -Path . -OutFile .\SHA256SUMS-stock.txt
 ```
 
-Keep another copy somewhere untouched.
+Store a second copy somewhere that will not be modified during the experiment.
 
 ---
 
-## 7. Confirm the original LOCKED/GREEN state
+# 7. Confirm the original LOCKED/GREEN state
 
-Before the Secure Storage patch, UART showed:
+Before the Secure Storage modification, the captured U-Boot log showed that the two unlock items were absent:
 
 ```text
 no item name device_unlock in the map
 no item name fastboot_status_flag in the map
 sunxi secure storage has no flag
+```
+
+AVB still verified normally and U-Boot reported the same `vbmeta_a` public-key path used later:
+
+```text
+pubkey vbmeta_a valid
 androidboot.vbmeta.device_state=locked
 androidboot.veritymode=enforcing
 androidboot.verifiedbootstate=green
 ```
 
-Analyze a saved boot log with:
+Analyze your saved UART log with:
 
 ```powershell
 python .\scripts\avb_log_check.py .\boot-before-unlock.log
 ```
 
-This establishes the baseline before writing anything.
+This establishes the pre-write baseline.
 
 ---
 
-## 8. Dump Allwinner Secure Storage
+# 8. Dump Allwinner Secure Storage
 
-On the **tested H723-6621-V1.2 firmware**, the validated region was:
+On the tested H723-6621-V1.2 firmware, the validated Secure Storage region was:
 
 ```text
 start LBA: 12288
@@ -330,26 +358,37 @@ python .\scripts\uart_dump.py COM5 `
   --out h723-secure-storage-original.bin
 ```
 
-Test-unit original SHA-256:
+The original test-unit SHA-256 was:
 
 ```text
 cc86b0255f07e9cec320285df83899a51354698c70003a8b1b1e56c807820490
 ```
 
 > [!WARNING]
-> LBA 12288 is verified for this test unit. On another board/firmware treat it as a read-only probe until the structure is validated. Never assume it is safe to write merely because the PCB looks similar.
+> LBA 12288 is verified for this unit/firmware. On another board, treat it as a **read-only probe first**. Do not write there until the parser validates the structure and you have saved the original bytes somewhere safe.
 
-Verify the structure:
+Verify:
 
 ```powershell
 python .\scripts\secure_storage_tool.py verify .\h723-secure-storage-original.bin
 ```
 
-The tool checks map/item magic, CRCs, bounds, duplicate names, and primary/backup copies.
+The public verifier checks:
+
+- exact 128 KiB size;
+- observed Allwinner magic;
+- map CRC;
+- primary/backup map equality;
+- item bounds;
+- duplicate names;
+- item CRCs;
+- primary/backup item equality.
 
 ---
 
-## 9. Build the unlock candidate
+# 9. Build the unlock candidate
+
+Create the candidate from **your own original dump**:
 
 ```powershell
 python .\scripts\secure_storage_tool.py patch `
@@ -357,16 +396,14 @@ python .\scripts\secure_storage_tool.py patch `
   .\h723-secure-storage-unlocked.bin
 ```
 
-The successful session added exactly:
+The successful session added exactly these two plaintext entries:
 
 ```text
 fastboot_status_flag = unlocked
 device_unlock        = unlock
 ```
 
-The hardened public tool verifies the **exact payloads**, not only the names.
-
-Then:
+Then verify the generated image and the exact values:
 
 ```powershell
 python .\scripts\secure_storage_tool.py verify `
@@ -374,19 +411,22 @@ python .\scripts\secure_storage_tool.py verify `
   --require-unlock
 ```
 
-Test-unit candidate SHA-256:
+For the test-unit dump the patched result had:
 
 ```text
+SHA-256:
 28a017814d6af136ab18f5f76396af4cd37f20cd407abfb613b0e4968c27fcc4
 ```
 
-A different legitimate firmware can have different hashes. Do not use these hashes as a universal compatibility test.
+Do not expect the same hashes from a different legitimate firmware. The values above identify this test unit's exact captures; they are not universal H723 hashes.
 
 ---
 
-## 10. Audit the live region before writing
+# 10. Audit the live Secure Storage before writing
 
-Run the writer **without `--write` first**:
+The public writer is read-only unless `--write` is supplied.
+
+For the exact test-unit dump/candidate:
 
 ```powershell
 python .\scripts\secure_storage_write_uart.py COM5 `
@@ -397,19 +437,39 @@ python .\scripts\secure_storage_write_uart.py COM5 `
   --backup-dir .\backup
 ```
 
-This reads live Secure Storage, saves another backup, checks the exact source hash, compares source/candidate blocks, prints the safe commit order, and writes nothing.
+Without `--write` it:
 
-For the successful test session the changed-block commit order was:
+1. reads live Secure Storage again;
+2. saves another timestamped backup;
+3. requires the exact source SHA-256 you supplied;
+4. checks the exact candidate SHA-256;
+5. calculates which 4 KiB blocks differ;
+6. prints the planned commit order;
+7. writes nothing.
+
+For the successful test-unit pair, the changed blocks are:
+
+```text
+0, 1, 8, 9, 10, 11
+```
+
+and the safe commit order is:
 
 ```text
 8, 9, 10, 11, 1, 0
 ```
 
-Item blocks are committed first, backup map next, primary map last.
+That order means:
+
+```text
+new item primary/backup copies
+    -> backup map
+    -> primary map LAST
+```
 
 ---
 
-## 11. Write the unlock flags
+# 11. Write the unlock candidate
 
 Only after the read-only audit matches exactly:
 
@@ -424,27 +484,35 @@ python .\scripts\secure_storage_write_uart.py COM5 `
   --write
 ```
 
-The writer performs preflight checks, writes only the expected changed 4 KiB blocks, `sync`s, immediately reads each block back byte-for-byte, then rereads and verifies the entire 128 KiB region. It does **not** reboot the board automatically.
+The writer then:
 
-If any read-back fails: **do not reboot**.
+1. repeats the source/candidate safety checks;
+2. tests `base64 -d` in the remote shell without touching eMMC;
+3. opens the eMMC block device with `count=0` to test write access without transferring data;
+4. writes only the expected changed 4 KiB blocks;
+5. calls `sync`;
+6. immediately reads every written 4 KiB block back and compares byte-for-byte;
+7. rereads the entire 128 KiB region;
+8. requires exact equality with the candidate;
+9. does **not** reboot the board.
 
-The exact historical writer is preserved in `reference/session-scripts/h723_secure_write_uart.py`.
+If any read-back fails, stop and **do not reboot**.
+
+The original session writer is preserved in [`reference/session-scripts/h723_secure_write_uart.py`](reference/session-scripts/h723_secure_write_uart.py). It is intentionally hard-coded to the known test-unit hashes; use the public writer for new boards.
 
 ---
 
-## 12. Verify GREEN -> ORANGE
+# 12. Reboot and verify GREEN -> ORANGE
 
-Keep UART recording and reboot only after the full write verification passes.
+After the complete Secure Storage read-back passes, keep UART capture running and reboot manually.
 
-After the patch U-Boot saw:
+Before the patch U-Boot had reported the two items missing. After the patch it showed the corresponding entries and:
 
 ```text
-name in map device_unlock
-name in map fastboot_status_flag
 find fastboot unlock flag
 ```
 
-and entered its orange path:
+The captured unlocked boot path included:
 
 ```text
 Your device software can't be checked for corruption.
@@ -455,44 +523,62 @@ androidboot.veritymode=enforcing
 androidboot.verifiedbootstate=orange
 ```
 
-Check the saved log:
+Run:
 
 ```powershell
 python .\scripts\avb_log_check.py .\boot-after-unlock.log
 ```
 
-The observed vbmeta digest stayed the same before and after this transition:
+The expected result is:
+
+```text
+device_unlock item:        present
+fastboot_status_flag item: present
+fastboot unlock flag:      found
+device_state:              unlocked
+verifiedbootstate:         orange
+veritymode:                enforcing
+RESULT: UNLOCKED / ORANGE
+```
+
+## What did *not* cause the orange state
+
+The transition happened **before the Magisk ramdisk patch**.
+
+The observed `vbmeta` digest was the same before and after the transition:
 
 ```text
 8350ea2274ca1891b0dbd686b8254840b627e24ab72e8ce4211de492b6eb37c9
 ```
 
-`veritymode` also remained `enforcing`.
+`veritymode` remained `enforcing`.
 
-So the working GREEN -> ORANGE transition did **not** require zeroing `vbmeta_a`, disabling dm-verity, installing Magisk, or patching the kernel merely to change the verified-boot state. It came from the two Allwinner Secure Storage flags consumed by U-Boot.
+Therefore the working green-to-orange procedure did **not** require zeroing `vbmeta_a`, disabling dm-verity, flashing a random `vbmeta`, installing Magisk, or patching the kernel merely to change the verified-boot color. The state change came from the Allwinner Secure Storage unlock flags consumed by U-Boot.
 
 ---
 
-## 13. Kernel modification in `boot_a`
+# 14. Continue from ORANGE to Magisk
 
-A distinct kernel modification happened here in the historical successful workflow:
+After the Secure Storage write has been fully read back and the next UART boot confirms:
 
 ```text
-UNLOCKED / ORANGE
-    -> patch kernel carried by boot_a
-    -> boot-test patched kernel
-    -> then patch init_boot_a with Magisk
+androidboot.vbmeta.device_state=unlocked
+androidboot.verifiedbootstate=orange
+androidboot.veritymode=enforcing
 ```
 
-The exact historical byte patch/tool is the one missing artifact. It is deliberately not guessed. See [`docs/kernel-patch-status.md`](docs/kernel-patch-status.md).
+continue with the stock `init_boot_a` image. The archived working directory does not support the earlier claim that a separate `boot_a` kernel binary patch was an additional required step here.
+
+`boot_a` should still be backed up before any experiment because it contains the kernel-side boot image, but the documented root path below does not ask the reader to modify it.
 
 ---
 
-## 14. Patch `init_boot_a` with Magisk
+# 15. Verify the correct Magisk target
 
-The supplied stock image was independently verified as Android boot image v4:
+The test-unit `init_boot_a` supplied with this project review is an Android boot image v4:
 
 ```text
+stock init_boot_a.img
 size:           8,388,608 bytes
 header version: 4
 kernel size:    0
@@ -500,21 +586,33 @@ ramdisk size:   3,346,935 bytes
 SHA-256:        2d0b2683e03e3edea8e5e47426e23088e0f0da112f2c597ac84e6e400873dca0
 ```
 
-The U-Boot line `ramdisk use init boot` is the evidence that `init_boot_a` is the Magisk ramdisk target on this firmware.
+The U-Boot line:
 
-Inspect your image:
+```text
+ramdisk use init boot
+```
+
+is the reason `init_boot_a`, not `boot_a`, is the Magisk ramdisk target on this firmware.
+
+You can inspect an image with:
 
 ```powershell
 python .\scripts\init_boot_inspect.py .\init_boot_a.img
 ```
 
-Patch an **untouched copy of your own image** in Magisk:
+---
+
+# 16. Patch `init_boot_a` with Magisk
+
+Use an **untouched copy** of your own stock `init_boot_a.img` in Magisk:
 
 ```text
 Magisk -> Install -> Select and Patch a File -> init_boot_a.img
 ```
 
-The successful test-session result was:
+Copy the resulting `magisk_patched-*.img` back to the PC and inspect/hash it before flashing.
+
+The successful patched image from this test session is independently verified as:
 
 ```text
 size:           8,388,608 bytes
@@ -524,21 +622,31 @@ ramdisk size:   3,240,383 bytes
 SHA-256:        c1e41476e9cb34b4f7d1599b31f1f882d7b8257b03623020f5c02529e402bf91
 ```
 
-The patched image contains Magisk markers (`/.magisk`, `PREINITDEVICE=`, `init-ld.xz`) absent from stock.
+It contains Magisk markers such as:
 
-Do not download and flash this test-unit image onto another board; patch your own stock `init_boot_a`.
+```text
+/.magisk
+PREINITDEVICE=
+init-ld.xz
+```
+
+while the stock `init_boot_a.img` does not.
+
+Do not download this patched image from another device. Patch **your own** stock `init_boot_a`.
 
 ---
 
-## 15. Enter Allwinner bootloader mode
+# 17. Enter the Allwinner bootloader / fastboot mode
 
-From running Android:
+From a running Android system:
 
 ```powershell
 .\adb.exe reboot bootloader
 ```
 
-On the tested unit the Allwinner USB interface used by the Python fastboot client was:
+The captured U-Boot flow showed the `bootonce-bootloader` request in `misc`.
+
+On the test unit, the Allwinner USB interface used by the Python flasher appeared as:
 
 ```text
 VID:PID = 1f3a:1010
@@ -549,9 +657,9 @@ This is a different phase from recovery ADB.
 
 ---
 
-## 16. Dry-run the fastboot flash
+# 18. Dry-run the fastboot flasher first
 
-For the exact test-session patched image:
+For the exact patched image from the test session:
 
 ```powershell
 python .\scripts\awfastboot_flash.py `
@@ -561,15 +669,21 @@ python .\scripts\awfastboot_flash.py `
   --sha256 c1e41476e9cb34b4f7d1599b31f1f882d7b8257b03623020f5c02529e402bf91
 ```
 
-Without `--yes`, the script checks local SHA/size, locates `1f3a:1010` and `ff/42/03`, sends `getvar:max-download-size`, and writes nothing.
+Without `--yes`, the script:
 
-For your own freshly patched image, use the SHA-256 of **that exact file**.
+- verifies the local image hash/size;
+- finds `1f3a:1010`;
+- finds the `ff/42/03` interface;
+- sends `getvar:max-download-size`;
+- **does not flash anything**.
+
+For your own newly generated Magisk image, replace `--sha256` with the SHA-256 of that exact file.
 
 ---
 
-## 17. Flash `init_boot_a`
+# 19. Flash `init_boot_a`
 
-After the dry-run succeeds:
+After the dry-run passes:
 
 ```powershell
 python .\scripts\awfastboot_flash.py `
@@ -580,7 +694,7 @@ python .\scripts\awfastboot_flash.py `
   --yes
 ```
 
-The successful protocol sequence was:
+The protocol sequence used in the successful session was:
 
 ```text
 getvar:max-download-size
@@ -589,11 +703,13 @@ download:00800000
 flash:init_boot_a
 ```
 
-The script deliberately sends no reboot command after flashing.
+The script deliberately sends **no reboot command** after the flash.
+
+The exact historical flasher, hard-coded to the known-good session SHA, is preserved under `reference/chat-recovered/awfastboot_flash_initboot.py`; the original working-directory archive itself contains `awfastboot.py`, which is a read-only fastboot probe rather than the flash writer.
 
 ---
 
-## 18. Verify root
+# 20. First rooted boot and verification
 
 Boot Android normally and check:
 
@@ -603,13 +719,15 @@ Boot Android normally and check:
 .\adb.exe shell "su -c 'id'"
 ```
 
-The successful board showed a root-owned `magiskd` process and `su -c id` returned UID 0. The later `su` used during HDMI/capture experiments was therefore the result of the completed Magisk setup, not proof of factory root.
+The successful board showed a root-owned `magiskd` process and `su -c id` returned UID 0.
+
+This confirms that the final `su` seen later in the HDMI/capture work was the result of the completed Magisk setup, not proof that the stock firmware shipped with factory root.
 
 ---
 
-## Recovery checklist
+# 21. Recovery checklist
 
-Before the first destructive write keep offline copies of:
+Before the first destructive write, keep these offline:
 
 ```text
 gpt34.bin
@@ -623,43 +741,107 @@ h723-secure-storage-original.bin
 SHA256SUMS-stock.txt
 ```
 
-Do not casually write an entire image to `/dev/block/mmcblk0`. The successful Secure Storage procedure changed only the required 4 KiB blocks and verified each one immediately.
+Do not casually write an entire image to `/dev/block/mmcblk0`. The successful Secure Storage writer changed only the necessary 4 KiB blocks and verified each one immediately.
+
+If a Secure Storage read-back fails, **do not reboot**. If a later boot image fails, restore only the exact partition you changed from its verified stock backup.
 
 ---
 
-## H723-CY-4D308 and other similar boards
+# 22. H723-CY-4D308 and other similar boards
 
-H723-CY-4D308 is listed because it looks very similar to the tested H723-6621-V1.2, **not** because binary compatibility has been proved.
+`H723-CY-4D308` has been reported as visually very similar to the tested `H723-6621-V1.2`, but this repository does not claim binary compatibility.
 
-Before reusing any destructive command on a similar board:
+Before reusing any write command on a similar board:
 
-1. verify UART;
-2. enter recovery and use physical USB ADB;
-3. dump and validate its own GPT;
+1. get UART working;
+2. boot recovery and use physical USB ADB, not network ADB;
+3. dump/validate its own GPT;
 4. compare partition names/sizes;
 5. dump its own stock boot images;
-6. probe the candidate Secure Storage region read-only first;
-7. require the Secure Storage parser to validate it;
-8. compute hashes from that board;
+6. read LBA 12288 only as a read-only Secure Storage probe;
+7. require the Secure Storage parser to validate the structure;
+8. create new hashes from that board;
 9. patch its own `init_boot_a` with Magisk;
-10. never flash an H723-6621-V1.2 image merely because the PCB looks similar.
+10. never flash an image from the H723-6621-V1.2 test unit merely because the PCB looks similar.
 
 ---
 
-## Scripts
+# 23. Code review performed for this public version
 
-Use `scripts/` for new work. They are publication-hardened: CRC/hash checks, strict transfer parsing, read-only/dry-run defaults and explicit write gates are added where possible.
+The public scripts are **not** a blind copy of the first experimental scripts. They were reviewed and hardened for publication.
 
-`reference/session-scripts/` preserves the recovered experimental scripts actually used during the successful session for audit/history.
+Changes include:
 
-The public code was syntax-checked and the included unit suite passed **6/6 tests**. Details are in [`docs/review-notes.md`](docs/review-notes.md).
+- GPT parser now validates both GPT CRCs, not only the `EFI PART` signature;
+- UART dumper rejects unexpected non-Base64 data inside a transfer instead of silently filtering it;
+- Secure Storage parser checks unique names, bounds, CRCs, backup copies **and exact unlock values**;
+- Secure Storage patcher refuses an existing unlock item with an unexpected payload;
+- public writer requires explicit source/candidate SHA-256 values and starts read-only;
+- public writer calculates the changed blocks and still commits item blocks before backup map and primary map;
+- fastboot writer requires an explicit SHA-256 and is dry-run by default;
+- AVB log checker analyzes the last SBOOT cycle in a combined UART log;
+- raw firmware images/logs are excluded by `.gitignore` to reduce accidental publication of device-specific data;
+- the README/log examples omit device serial numbers and Wi-Fi/Bluetooth MAC addresses.
 
-Raw firmware images/dumps are intentionally excluded by `.gitignore`. Verified artifact hashes and metadata are in [`docs/verified-artifacts.md`](docs/verified-artifacts.md).
+The byte-for-byte scripts found in the uploaded `platform-tools.rar` archive are under [`reference/session-scripts/`](reference/session-scripts/). Files reconstructed later from chat/project history are separated under [`reference/chat-recovered/`](reference/chat-recovered/). For new work, use the hardened scripts under [`scripts/`](scripts/).
+
+Automated unit tests cover GPT CRC validation and Secure Storage validation/patch behavior. A GitHub Actions workflow runs Python syntax checks and unit tests on every push/PR.
+
+Detailed review/test notes are in [`docs/review-notes.md`](docs/review-notes.md).
+
+---
+
+# 24. Reproducibility data
+
+Hashes and metadata for the binary captures inspected while preparing this repository are in [`docs/verified-artifacts.md`](docs/verified-artifacts.md).
+
+Raw firmware images are **not** committed. This is intentional: a public guide should teach people to dump and patch their own firmware rather than distribute board-specific boot images.
+
+---
+
+## Repository layout
+
+```text
+.
+├── README.md
+├── requirements.txt
+├── images/
+│   ├── h723-6621-v1.2-uart-location.jpg
+│   └── h723-6621-v1.2-usb-adb-wiring.jpg
+├── docs/
+│   ├── boot-chain.md
+│   ├── session-script-inventory.md
+│   ├── partition-map.md
+│   └── verified-artifacts.md
+├── scripts/
+│   ├── avb_log_check.py
+│   ├── awfastboot_flash.py
+│   ├── gpt_inspect.py
+│   ├── init_boot_inspect.py
+│   ├── recovery_usb_adb.ps1
+│   ├── secure_storage_tool.py
+│   ├── secure_storage_write_uart.py
+│   ├── sha256_manifest.ps1
+│   ├── uart_dump.py
+│   └── uart_log_capture.py
+├── reference/
+│   ├── session-scripts/
+│   │   ├── py.py
+│   │   ├── awfastboot.py
+│   │   ├── uart_gpt.py
+│   │   ├── uartdump.py
+│   │   └── h723_secure_write_uart.py
+│   └── chat-recovered/
+│       └── ... files reconstructed/recovered outside the archive ...
+└── tests/
+    ├── test_gpt_inspect.py
+    └── test_secure_storage_tool.py
+```
 
 ## Current status
 
-**Verified on H723-6621-V1.2:** GPT discovery, partition selection, Secure Storage unlock flags, `GREEN -> ORANGE`, Magisk `init_boot_a` characteristics, Allwinner USB fastboot path and final Magisk root.
+**Verified on H723-6621-V1.2:** partition discovery, Secure Storage unlock flags, `GREEN -> ORANGE`, `init_boot_a` Magisk patch characteristics, Allwinner USB fastboot path, and final Magisk root.
 
-**Not recovered:** the exact historical kernel patch applied to `boot_a` before the final Magisk step.
+The original `platform-tools.rar` archive has also been audited against this guide. The exact archived session scripts are preserved under `reference/session-scripts/`; publication-hardened replacements remain under `scripts/`.
 
-**Not tested:** H723-CY-4D308. It is only a visually similar board until independently validated.
+**Not tested:** H723-CY-4D308. It is listed only as a visually similar board and must be independently validated before any writes.

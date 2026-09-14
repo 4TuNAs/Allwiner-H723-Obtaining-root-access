@@ -13,4 +13,6 @@ Use the files in this directory for new/repeated work. These are publication-har
 - `recovery_usb_adb.ps1` — normal-Android -> recovery helper that deliberately waits for physical USB ADB rather than the old network endpoint.
 - `sha256_manifest.ps1` — produce a SHA-256 manifest of backups.
 
-The scripts under `reference/session-scripts/` are preserved for historical comparison. Prefer the hardened versions here.
+These are **publication-hardened tools**, not a claim that every file in this directory existed during the original rooting session.
+
+The byte-for-byte scripts found in the original `platform-tools.rar` working-directory archive are preserved under `reference/session-scripts/`. See [`../docs/session-script-inventory.md`](../docs/session-script-inventory.md) for provenance and SHA-256 values. Prefer the hardened versions here for new work.

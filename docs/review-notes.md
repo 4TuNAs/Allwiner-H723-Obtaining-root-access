@@ -13,7 +13,7 @@ This public revision was rebuilt from the project conversation history, recovere
 - Inspected `boot0-primary-full.bin` for SBOOT/TOC1 boot-chain strings.
 - Rechecked recovered pre-unlock and post-unlock UART evidence: the vbmeta digest remained the same while state changed from locked/green to unlocked/orange and `veritymode=enforcing` remained in place.
 - Rechecked the recovered session scripts for GPT dumping, arbitrary UART dumping, Secure Storage patch/write, and Allwinner USB fastboot flashing.
-- Searched the available project history/files specifically for the historical `boot_a` kernel-patch script/bytes. The exact artifact was not recovered and is therefore not fabricated in this repository.
+- Re-checked the original `platform-tools.rar` working-directory archive. It contains no separate `boot_a` kernel-patch script or patched `boot_a` image, so the earlier documentation claim that a distinct kernel patch was a confirmed required step was removed.
 - Removed device serial/MAC examples from public documentation.
 - Added `.gitignore` rules to prevent accidental publication of raw firmware/dumps/logs.
 
@@ -51,3 +51,7 @@ The hardened `gpt_inspect.py` was also run against the supplied real `gpt34.bin`
 This build environment does not have the physical H723 board attached, so the new serial/USB hardware wrappers cannot be re-executed end-to-end here. Their underlying historical operations are preserved in `reference/session-scripts/` and were used during the successful board session.
 
 PowerShell itself is not installed in this build environment, so the `.ps1` helpers were reviewed statically rather than executed here.
+
+## Original working-directory archive audit
+
+The uploaded `platform-tools.rar` was enumerated directly. The exact first-party scripts present in that archive are now preserved byte-for-byte under `reference/session-scripts/` and documented in `session-script-inventory.md`. Scripts created later for publication safety remain under `scripts/` and are not mislabeled as original session files.
