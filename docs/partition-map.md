@@ -1,6 +1,6 @@
 # Verified GPT partition map — H723-6621-V1.2 test unit
 
-This table was parsed from the uploaded 34-sector primary GPT dump. Both the GPT header CRC32 and partition-entry-array CRC32 validate successfully.
+This table was parsed from the validated 34-sector primary GPT capture. Both the GPT header CRC32 and partition-entry-array CRC32 validate successfully.
 
 - GPT revision: `1.0`
 - Header size: `92` bytes

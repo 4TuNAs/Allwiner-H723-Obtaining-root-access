@@ -15,4 +15,4 @@ Use the files in this directory for new/repeated work. These are publication-har
 
 These are **publication-hardened tools**, not a claim that every file in this directory existed during the original rooting session.
 
-The byte-for-byte scripts found in the original `platform-tools.rar` working-directory archive are preserved under `reference/session-scripts/`. See [`../docs/session-script-inventory.md`](../docs/session-script-inventory.md) for provenance and SHA-256 values. Prefer the hardened versions here for new work.
+The original session scripts are preserved under `reference/session-scripts/`. See [`../docs/session-script-inventory.md`](../docs/session-script-inventory.md) for SHA-256 values and roles. Prefer the hardened versions here for new work.

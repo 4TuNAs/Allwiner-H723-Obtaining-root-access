@@ -13,7 +13,7 @@ Raw firmware/dump files are intentionally **not** included in this repository. T
 
 ## Secure Storage hashes from the successful unlock session
 
-These came from the exact H723-6621-V1.2 test unit and are deliberately hard-coded only in the archived session writer, not in the generic public writer.
+These came from the exact H723-6621-V1.2 test unit and are deliberately hard-coded only in the original session writer, not in the generic public writer.
 
 - Original 128 KiB region: `cc86b0255f07e9cec320285df83899a51354698c70003a8b1b1e56c807820490`
 - Unlocked candidate: `28a017814d6af136ab18f5f76396af4cd37f20cd407abfb613b0e4968c27fcc4`

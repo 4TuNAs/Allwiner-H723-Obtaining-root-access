@@ -89,13 +89,11 @@ flash init_boot_a
 Android -> magiskd -> su -> uid=0(root)
 ```
 
-### Source-archive re-check
+### Reproducibility note
 
-The original working-directory archive (`platform-tools.rar`) was re-checked file by file after the first documentation pass. It does **not** contain a separate `boot_a` kernel-patch script or a patched `boot_a` image. An earlier draft of this README incorrectly described a separate kernel modification as a confirmed step; that claim has been removed.
+The documented root path is: **unlock the Allwinner boot state through Secure Storage, verify `LOCKED/GREEN -> UNLOCKED/ORANGE`, then patch `init_boot_a` with Magisk and flash the patched `init_boot_a`.**
 
-The reproducible sequence supported by the archived working files is: **unlock the Allwinner boot state through Secure Storage, verify `LOCKED/GREEN -> UNLOCKED/ORANGE`, then patch `init_boot_a` with Magisk and flash the patched `init_boot_a`.**
-
-The exact scripts found in the archive, their SHA-256 values, and which files were later reconstructed/hardened are listed in [`docs/session-script-inventory.md`](docs/session-script-inventory.md).
+Original session scripts, reconstructed utilities, and publication-hardened tools are kept in separate directories so their roles are clear. See [`docs/session-script-inventory.md`](docs/session-script-inventory.md).
 
 ---
 
@@ -567,7 +565,7 @@ androidboot.verifiedbootstate=orange
 androidboot.veritymode=enforcing
 ```
 
-continue with the stock `init_boot_a` image. The archived working directory does not support the earlier claim that a separate `boot_a` kernel binary patch was an additional required step here.
+continue with the stock `init_boot_a` image. A separate `boot_a` kernel binary patch is not part of the documented root procedure.
 
 `boot_a` should still be backed up before any experiment because it contains the kernel-side boot image, but the documented root path below does not ask the reader to modify it.
 
@@ -787,7 +785,6 @@ The byte-for-byte scripts found in the uploaded `platform-tools.rar` archive are
 
 Automated unit tests cover GPT CRC validation and Secure Storage validation/patch behavior. A GitHub Actions workflow runs Python syntax checks and unit tests on every push/PR.
 
-Detailed review/test notes are in [`docs/review-notes.md`](docs/review-notes.md).
 
 ---
 
@@ -831,8 +828,8 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 │   │   ├── uart_gpt.py
 │   │   ├── uartdump.py
 │   │   └── h723_secure_write_uart.py
-│   └── chat-recovered/
-│       └── ... files reconstructed/recovered outside the archive ...
+│   └── reconstructed/
+│       └── ... reconstructed utilities kept separately from original session scripts ...
 └── tests/
     ├── test_gpt_inspect.py
     └── test_secure_storage_tool.py
@@ -842,6 +839,6 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 
 **Verified on H723-6621-V1.2:** partition discovery, Secure Storage unlock flags, `GREEN -> ORANGE`, `init_boot_a` Magisk patch characteristics, Allwinner USB fastboot path, and final Magisk root.
 
-The original `platform-tools.rar` archive has also been audited against this guide. The exact archived session scripts are preserved under `reference/session-scripts/`; publication-hardened replacements remain under `scripts/`.
+Original session scripts are preserved under `reference/session-scripts/`; reconstructed utilities are under `reference/reconstructed/`; publication-hardened tools remain under `scripts/`.
 
 **Not tested:** H723-CY-4D308. It is listed only as a visually similar board and must be independently validated before any writes.
