@@ -703,7 +703,7 @@ flash:init_boot_a
 
 The script deliberately sends **no reboot command** after the flash.
 
-The exact historical flasher, hard-coded to the known-good session SHA, is preserved under `reference/chat-recovered/awfastboot_flash_initboot.py`; the original working-directory archive itself contains `awfastboot.py`, which is a read-only fastboot probe rather than the flash writer.
+The session flasher used for this step is preserved under `reference/reconstructed/awfastboot_flash_initboot.py`. `reference/session-scripts/awfastboot.py` is a read-only fastboot probe and is not the flash writer.
 
 ---
 
@@ -781,7 +781,7 @@ Changes include:
 - raw firmware images/logs are excluded by `.gitignore` to reduce accidental publication of device-specific data;
 - the README/log examples omit device serial numbers and Wi-Fi/Bluetooth MAC addresses.
 
-The byte-for-byte scripts found in the uploaded `platform-tools.rar` archive are under [`reference/session-scripts/`](reference/session-scripts/). Files reconstructed later from chat/project history are separated under [`reference/chat-recovered/`](reference/chat-recovered/). For new work, use the hardened scripts under [`scripts/`](scripts/).
+Original session scripts are preserved under [`reference/session-scripts/`](reference/session-scripts/). Reconstructed utilities are kept separately under [`reference/reconstructed/`](reference/reconstructed/). For new work, use the hardened tools under [`scripts/`](scripts/).
 
 Automated unit tests cover GPT CRC validation and Secure Storage validation/patch behavior. A GitHub Actions workflow runs Python syntax checks and unit tests on every push/PR.
 
@@ -790,7 +790,7 @@ Automated unit tests cover GPT CRC validation and Secure Storage validation/patc
 
 # 24. Reproducibility data
 
-Hashes and metadata for the binary captures inspected while preparing this repository are in [`docs/verified-artifacts.md`](docs/verified-artifacts.md).
+Hashes and metadata for the verified binary captures used by this guide are in [`docs/verified-artifacts.md`](docs/verified-artifacts.md).
 
 Raw firmware images are **not** committed. This is intentional: a public guide should teach people to dump and patch their own firmware rather than distribute board-specific boot images.
 
