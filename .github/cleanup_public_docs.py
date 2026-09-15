@@ -1,42 +1,50 @@
 from pathlib import Path
-import re
 
 # Main README: keep only public technical facts and reproducibility information.
 p = Path('README.md')
 s = p.read_text()
-s = re.sub(
-    r'(Android -> magiskd -> su -> uid=0\(root\)\n```\n\n)### .*?\n\n.*?\n---\n\n# 1\. Host setup',
-    r'\1### Reproducibility note\n\nThe documented root path is: **unlock the Allwinner boot state through Secure Storage, verify `LOCKED/GREEN -> UNLOCKED/ORANGE`, then patch `init_boot_a` with Magisk and flash the patched `init_boot_a`.**\n\nOriginal session scripts, reconstructed utilities, and publication-hardened tools are kept in separate directories so their roles are clear. See [`docs/session-script-inventory.md`](docs/session-script-inventory.md).\n\n---\n\n# 1. Host setup',
-    s,
-    count=1,
-    flags=re.S,
-)
-s = re.sub(
-    r'continue with the stock `init_boot_a` image\. .*?\n\n`boot_a` should still be backed up',
-    'continue with the stock `init_boot_a` image. A separate `boot_a` kernel binary patch is not part of the documented root procedure.\n\n`boot_a` should still be backed up',
-    s,
-    count=1,
-    flags=re.S,
-)
+
+# Replace the metadata/provenance paragraph between the successful-chain block and Host setup.
+chain_anchor = 'Android -> magiskd -> su -> uid=0(root)\n```\n'
+host_anchor = '\n---\n\n# 1. Host setup'
+a = s.find(chain_anchor)
+b = s.find(host_anchor, a + len(chain_anchor)) if a >= 0 else -1
+if a >= 0 and b >= 0:
+    a += len(chain_anchor)
+    replacement = '''\n### Reproducibility note\n\nThe documented root path is: **unlock the Allwinner boot state through Secure Storage, verify `LOCKED/GREEN -> UNLOCKED/ORANGE`, then patch `init_boot_a` with Magisk and flash the patched `init_boot_a`.**\n\nOriginal session scripts, reconstructed utilities, and publication-hardened tools are kept in separate directories so their roles are clear. See [`docs/session-script-inventory.md`](docs/session-script-inventory.md).\n'''
+    s = s[:a] + replacement + s[b:]
+
+# Keep the ORANGE -> Magisk step technical and concise.
+start_phrase = 'continue with the stock `init_boot_a` image.'
+next_phrase = '`boot_a` should still be backed up'
+a = s.find(start_phrase)
+b = s.find(next_phrase, a) if a >= 0 else -1
+if a >= 0 and b >= 0:
+    s = s[:a] + 'continue with the stock `init_boot_a` image. A separate `boot_a` kernel binary patch is not part of the documented root procedure.\n\n' + s[b:]
+
 s = s.replace('Detailed review/test notes are in [`docs/review-notes.md`](docs/review-notes.md).\n', '')
-s = re.sub(
-    r'│   └── [^/\n]+/\n│       └── .*files reconstructed.*',
-    '│   └── reconstructed/\n│       └── ... reconstructed utilities kept separately from original session scripts ...',
-    s,
-)
-s = re.sub(
-    r'\nThe original .*?publication-hardened replacements remain under `scripts/`\.',
-    '\nOriginal session scripts are preserved under `reference/session-scripts/`; reconstructed utilities are under `reference/reconstructed/`; publication-hardened tools remain under `scripts/`.',
-    s,
-    count=1,
-    flags=re.S,
-)
-s = re.sub(
-    r'The exact first discovery experiment that originally led us to LBA 12288 .*?\n',
-    'The exact first discovery method for LBA 12288 is not documented here. The location itself is confirmed by the successful dump/write sequence and subsequent boot behavior, so this guide does not invent an unverified discovery command.\n',
-    s,
-    count=1,
-)
+s = s.replace('│   └── chat-recovered/\n│       └── ... files reconstructed/recovered outside the archive ...', '│   └── reconstructed/\n│       └── ... reconstructed utilities kept separately from original session scripts ...')
+
+# Replace the middle paragraph in Current status without exposing internal source names.
+status = s.find('## Current status')
+verified = s.find('**Verified on H723-6621-V1.2:**', status) if status >= 0 else -1
+not_tested = s.find('**Not tested:**', verified) if verified >= 0 else -1
+if verified >= 0 and not_tested >= 0:
+    verified_end = s.find('\n\n', verified)
+    if verified_end >= 0 and verified_end < not_tested:
+        prefix = s[:verified_end + 2]
+        suffix = s[not_tested:]
+        middle = 'Original session scripts are preserved under `reference/session-scripts/`; reconstructed utilities are under `reference/reconstructed/`; publication-hardened tools remain under `scripts/`.\n\n'
+        s = prefix + middle + suffix
+
+# Replace the one public-facing uncertainty statement with a technical statement only.
+needle = 'The exact first discovery experiment that originally led us to LBA 12288'
+pos = s.find(needle)
+if pos >= 0:
+    end = s.find('\n', pos)
+    if end >= 0:
+        s = s[:pos] + 'The exact first discovery method for LBA 12288 is not documented here. The location itself is confirmed by the successful dump/write sequence and subsequent boot behavior, so this guide does not invent an unverified discovery command.' + s[end:]
+
 p.write_text(s)
 
 Path('scripts/README.md').write_text('''# Scripts
