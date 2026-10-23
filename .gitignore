@@ -10,3 +10,8 @@ __pycache__/
 secure-work/
 backup/
 SHA256SUMS*.txt
+
+# Magisk offline extraction from user-supplied APK (redistribution excluded)
+mp/
+Magisk*.apk
+magisk*.apk
