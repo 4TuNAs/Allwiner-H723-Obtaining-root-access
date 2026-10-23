@@ -47,3 +47,8 @@ The disk/partition GUIDs are intentionally omitted because they are per-device i
 | 29 | `/dev/block/mmcblk0p29` | `userdata` | 6308864 | 15269854 | 8960991 | ~4.27 GiB |
 
 Do **not** assume this table applies to H723-CY-4D308 or another firmware. Run `scripts/uart_dump.py` + `scripts/gpt_inspect.py` first and use the LBAs from that device.
+
+
+## V1.3 independent verification
+
+The H723-6621-V1.3 unit (Android build 2026-05-23) independently validated an identical GPT partition layout, with primary header CRC32 `6ad342cd`, entry-array CRC32 `534057f5`, and 29 partitions. Primary GPT SHA-256 on V1.3 was `b852badd4d159cdca67d3bf2acd86feaa0a18bffe87a310666206d4fb8843e05`. **Matching partition LBAs do not imply interchangeable partition contents or boot images.** The 64 MiB `boot_a` was not backed up or flashed for V1.3 root.

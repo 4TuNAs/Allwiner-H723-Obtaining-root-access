@@ -3,7 +3,7 @@
 Use the files in this directory for new/repeated work. These are publication-hardened versions of the workflow: destructive actions are opt-in, hashes/CRCs are checked, and board-specific assumptions must be supplied explicitly where practical.
 
 - `uart_log_capture.py` — capture UART output to a file.
-- `uart_dump.py` — strict read-only raw eMMC dump through the recovery UART shell.
+- `uart_dump.py` — strict read-only raw eMMC dump through the recovery UART shell. Now includes progress/ETA, shell readiness verification, and remote Ctrl+C recovery on interruption; no 64 MiB boot_a dump is needed.
 - `gpt_inspect.py` — validate primary GPT CRCs and print partition LBAs.
 - `secure_storage_tool.py` — validate/patch the observed Allwinner Secure Storage structure.
 - `secure_storage_write_uart.py` — hash-gated, read-back-verified Secure Storage writer; read-only unless `--write`.
@@ -16,3 +16,8 @@ Use the files in this directory for new/repeated work. These are publication-har
 These are **publication-hardened tools**, not a claim that every file in this directory existed during the original rooting session.
 
 The original session scripts are preserved under `reference/session-scripts/`. See [`../docs/session-script-inventory.md`](../docs/session-script-inventory.md) for SHA-256 values and roles. Prefer the hardened versions here for new work.
+
+
+## Magisk ARM32 offline patch workaround (tested V1.3)
+
+Use `python .\scripts\extract_magisk_arm32.py .\Magisk-v30.7.apk` from the repository root to extract the patching binaries from **your own official Magisk v30.7 APK** into `mp/`. Then `patch_init_boot.cmd` patches your own `init_boot_a.img` on the device via normal Android ADB, pulls `magisk_patched_init_boot_a.img`, inspects it and prints its SHA-256. No firmware is flashed by these scripts. The GUI file picker failed on the tested Android projector. No Magisk binaries are committed.
