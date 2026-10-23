@@ -23,20 +23,7 @@ A reproducible hardware/software guide based on a real rooting session on an And
 
    ![Enable USB debugging and USB0 device mode](images/h723-6621-v1.3-usb-debugging-enabled.jpg)
 
-4. Connect the projector's **USB device/data interface** to the Windows PC. Our test board needed the **physical USB data wiring shown below**; charging-only wiring cannot carry ADB. Check the board pinout and do not connect two separate +5 V sources together.
-5. When prompted **"Allow USB debugging?"**, select **Allow** to authorize the PC RSA key. Use **Always allow from this computer** only on a trusted PC.
-
-   [Photo: allow USB debugging on the projector](images/h723-6621-v1.3-adb-rsa-authorization.jpg) (original RSA fingerprint visible).
-
-6. **Only now**, on the Windows PC, run the first ADB check (adjust the path to `adb.exe` as needed):
-
-   ```powershell
-   .\adb.exe devices -l
-   ```
-
-   The device must appear with state **`device`**. If it shows `unauthorized`, confirm the prompt on the projector; if the list is empty, check the physical USB data connection, USB0 device mode and host ADB driver.
-
-**All subsequent ADB commands assume the steps above are complete.** Recovery requires physical USB data on this board; the normal Android network ADB endpoint does not persist into recovery.
+**Do not attempt ADB yet.** The projector-side prerequisites are now enabled; next, install Android Platform Tools on your Windows computer (step 2), make the physical USB data connection, and authorize the computer when its first ADB request triggers the RSA dialog (step 3).
 
 ---
 
@@ -180,6 +167,8 @@ Install:
 python -m pip install -r requirements.txt
 ```
 
+**Connect the PC only after enabling USB debugging and USB0 device mode in step 1.** The tested projector needed the USB device/data wiring on the PCB (not a charge-only cable); verify the board wiring and never connect two separate +5 V supplies. The first `adb devices -l` on this host will trigger authorization on the projector.
+
 For the Allwinner bootloader interface on Windows, PyUSB must be able to claim USB device `1f3a:1010`. If Python cannot see it, a libusb-compatible driver may be required for that interface.
 
 Do not start any raw-write step until you have working UART access and verified backups.
@@ -188,11 +177,15 @@ Do not start any raw-write step until you have working UART access and verified 
 
 # 3. Start in normal Android
 
-Check ADB:
+Check ADB **after** finishing projector settings (step 1) and installing Platform Tools plus connecting USB data (step 2):
 
 ```powershell
 .\adb.exe devices -l
 ```
+
+If Android shows **"Allow USB debugging?"** with the PC RSA key fingerprint, select **Allow** (and optionally **Always allow from this computer** on a trusted PC), then run `adb devices -l` once more. Proceed only when the state is **`device`**, not `unauthorized` or empty.
+
+![First ADB connection: PC RSA key authorization](images/h723-6621-v1.3-adb-rsa-authorization.jpg)
 
 **Prerequisite:** complete step 1 on the projector first. On the tested V1.3 board, the USB debugging toggle alone is insufficient: enable USB0 device mode, connect the USB data interface and authorize the PC RSA key. If normal Android **already has** a working TCP ADB endpoint, it may be used here instead; USB debugging does **not** automatically enable TCP ADB.
 
