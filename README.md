@@ -27,137 +27,13 @@ A reproducible hardware/software guide based on a real rooting session on an And
 
 ---
 
-## Tested V1.3 board — hardware overview
-
-![H723-6621-V1.3 mainboard with connected CP2102 UART adapter](images/h723-6621-v1.3-open-mainboard-cp2102.jpg)
-
-The V1.3 projector was opened and the CP2102 adapter connected during the successful rooting session. See the [V1.3 verified step-by-step report](docs/h723-6621-v1.3-verified-root.md) for close-ups and photographs of recovery, orange boot, Magisk setup, and the Superuser prompt. Do **not** infer UART pin ordering from photo cable colors.
-
-### V1.3 step photos
-
-| Stage | Photo |
-|---|---|
-| Front cover / grille removed | [View photo](images/h723-6621-v1.3-front-grille-removed.jpg) |
-| Opened mainboard and CP2102 UART adapter | [View photo](images/h723-6621-v1.3-open-mainboard-cp2102.jpg) |
-| UART wiring / PCB close-up | [View photo](images/h723-6621-v1.3-mainboard-uart-wiring-closeup.jpg) |
-| Developer Tools app | [View photo](images/h723-6621-v1.3-developer-tools-play-store.jpg) |
-| Developer options menu | [View photo](images/h723-6621-v1.3-developer-options-menu.jpg) |
-| USB debugging and USB device mode | [View photo](images/h723-6621-v1.3-usb-debugging-enabled.jpg) |
-| ADB computer authorization (original RSA fingerprint visible) | [View photo](images/h723-6621-v1.3-adb-rsa-authorization.jpg) |
-| Android Recovery | [View photo](images/h723-6621-v1.3-android-recovery-menu.jpg) |
-| Android boot logo | [View photo](images/h723-6621-v1.3-android-boot-logo.jpg) |
-| Unlocked bootloader warning (ORANGE) | [View photo](images/h723-6621-v1.3-unlocked-bootloader-warning.jpg) |
-| Magisk additional setup prompt | [View photo](images/h723-6621-v1.3-magisk-additional-setup.jpg) |
-| Magisk Superuser authorization | [View photo](images/h723-6621-v1.3-magisk-superuser-authorization.jpg) |
-
-The USB authorization screenshot is retained in its original form, including the RSA public-key fingerprint, as requested. The screenshots document the tested V1.3 unit. [Photo index and descriptions](images/README.md).
-
-## Tested board — V1.2 photos (V1.3 in separate report)
-
-### UART location
-
-![H723-6621-V1.2 UART location](images/h723-6621-v1.2-uart-location.jpg)
-
-The photo marks the UART connector area. **It does not document the exact GND/TX/RX pin order. Do not infer pin order from wire colors.** Confirm it on your board before connecting a USB-UART adapter.
-
-UART settings used during the work:
-
-```text
-115200 baud
-8 data bits
-no parity
-1 stop bit
-no flow control
-```
-
-### Recovery USB ADB wiring
-
-![H723-6621-V1.2 recovery USB ADB wiring](images/h723-6621-v1.2-usb-adb-wiring.jpg)
-
-The recovery connection is the important part that is easy to miss:
-
-- network/TCP ADB works while normal Android is running;
-- after `adb reboot recovery`, **network ADB is gone** on this board;
-- recovery ADB requires a **physical USB data connection** soldered to the USB-A connector/data lines on the PCB;
-- keep UART connected in parallel for U-Boot/recovery logs and the raw-dump scripts.
-
-The second photo also marks the +5 V/GND points used in the test setup. Do not connect two 5 V sources together unless you have checked how your board is powered.
-
----
-
-## What was actually verified
-
-The test unit reported an H723/sun50iw15p1 platform, Android 14/API 34 and an A/B partition layout. The captured U-Boot environment and boot logs show active slot `_a`, `boot_a` as the kernel-side boot image, and `init_boot_a` as the source of the generic ramdisk (`ramdisk use init boot`).
-
-The successful chain was:
-
-```text
-stock Android (USB debugging initially OFF)
-    |
-    v
-Google Play -> Developer Tools (Roy Solberg) -> Developer options
-    |
-    v
-USB debugging ON + USB0 device mode ON
-    |
-    v
-Physical USB data -> allow PC RSA fingerprint -> authorized ADB
-    |
-    | adb reboot recovery
-    v
-recovery
-    |-- physical USB ADB (soldered USB data connection)
-    `-- UART 115200 8N1
-    |
-    v
-read and validate GPT
-    |
-    v
-back up init_boot_a / env_a / vbmeta_a and required small regions
-    |
-    v
-read Allwinner Secure Storage
-    |
-    v
-add device_unlock=unlock
-add fastboot_status_flag=unlocked
-rebuild CRCs + redundant copies
-    |
-    v
-safe raw write + per-block read-back + full read-back
-    |
-    v
-U-Boot AVB state: LOCKED/GREEN -> UNLOCKED/ORANGE
-    |
-    v
-Magisk patch of init_boot_a
-    |
-    | adb reboot bootloader
-    v
-Allwinner USB fastboot 1f3a:1010
-    |
-    v
-flash init_boot_a
-    |
-    v
-Android -> magiskd -> su -> uid=0(root)
-```
-
-### Reproducibility note
-
-The documented root path is: **unlock the Allwinner boot state through Secure Storage, verify `LOCKED/GREEN -> UNLOCKED/ORANGE`, then patch `init_boot_a` with Magisk and flash the patched `init_boot_a`.**
-
-Original session scripts, reconstructed utilities, and publication-hardened tools are kept in separate directories so their roles are clear. See [`docs/session-script-inventory.md`](docs/session-script-inventory.md).
-
----
-
 # 2. Host setup
 
 Examples use Windows PowerShell because that is how the board was tested.
 
 Install:
 
-- Android Platform Tools (`adb.exe`)
+- Android Platform Tools (`adb.exe` in the parent directory of this repository)
 - Python 3
 - a USB-UART adapter capable of 3.3 V logic
 - `pyserial`
@@ -167,7 +43,9 @@ Install:
 python -m pip install -r requirements.txt
 ```
 
-**Connect the PC only after enabling USB debugging and USB0 device mode in step 1.** The tested projector needed the USB device/data wiring on the PCB (not a charge-only cable); verify the board wiring and never connect two separate +5 V supplies. The first `adb devices -l` on this host will trigger authorization on the projector.
+**Layout used in the verified Windows session:** `adb.exe` (from Android Platform Tools) is in the **parent folder** of this cloned repository; all commands below run from the repository root and use `..\\adb.exe`. If you keep it elsewhere, adjust that path consistently. The Magisk batch script `patch_init_boot.cmd` expects `..\\adb.exe`.
+
+**Connect the PC only after enabling USB debugging and USB0 device mode in step 1.** Use the tested physical USB data wiring on the PCB (not a charge-only cable), keep UART on its own adapter, and never connect two independent +5 V sources. The first `adb devices -l` request triggers the authorization on the projector.
 
 For the Allwinner bootloader interface on Windows, PyUSB must be able to claim USB device `1f3a:1010`. If Python cannot see it, a libusb-compatible driver may be required for that interface.
 
@@ -180,27 +58,27 @@ Do not start any raw-write step until you have working UART access and verified 
 Check ADB **after** finishing projector settings (step 1) and installing Platform Tools plus connecting USB data (step 2):
 
 ```powershell
-.\adb.exe devices -l
+..\adb.exe devices -l
 ```
 
 If Android shows **"Allow USB debugging?"** with the PC RSA key fingerprint, select **Allow** (and optionally **Always allow from this computer** on a trusted PC), then run `adb devices -l` once more. Proceed only when the state is **`device`**, not `unauthorized` or empty.
 
 ![First ADB connection: PC RSA key authorization](images/h723-6621-v1.3-adb-rsa-authorization.jpg)
 
-**Prerequisite:** complete step 1 on the projector first. On the tested V1.3 board, the USB debugging toggle alone is insufficient: enable USB0 device mode, connect the USB data interface and authorize the PC RSA key. If normal Android **already has** a working TCP ADB endpoint, it may be used here instead; USB debugging does **not** automatically enable TCP ADB.
+**Prerequisite:** enable both USB debugging and USB0 device mode, connect physical USB data, and authorize the PC RSA key. All following ADB commands use this same **physical USB connection**, including Recovery.
 
 Capture basic properties before changing anything:
 
 ```powershell
-.\adb.exe shell getprop ro.build.version.release
-.\adb.exe shell getprop ro.build.version.sdk
-.\adb.exe shell getprop ro.product.cpu.abi
-.\adb.exe shell getprop ro.boot.slot_suffix
-.\adb.exe shell getprop ro.boot.vbmeta.device_state
-.\adb.exe shell getprop ro.boot.verifiedbootstate
-.\adb.exe shell getprop ro.boot.veritymode
-.\adb.exe shell uname -a
-.\adb.exe shell getprop > getprop-stock.txt
+..\adb.exe shell getprop ro.build.version.release
+..\adb.exe shell getprop ro.build.version.sdk
+..\adb.exe shell getprop ro.product.cpu.abi
+..\adb.exe shell getprop ro.boot.slot_suffix
+..\adb.exe shell getprop ro.boot.vbmeta.device_state
+..\adb.exe shell getprop ro.boot.verifiedbootstate
+..\adb.exe shell getprop ro.boot.veritymode
+..\adb.exe shell uname -a
+..\adb.exe shell getprop > getprop-stock.txt
 ```
 
 Keep the UART adapter connected and start a boot-log capture before rebooting:
@@ -218,35 +96,17 @@ Use your actual COM port.
 Request recovery from the currently running Android:
 
 ```powershell
-.\adb.exe reboot recovery
+..\adb.exe reboot recovery
 ```
 
-If the normal Android connection is TCP ADB, an explicit target is safer:
+The tested board enters Recovery on reboot. Keep the **physical USB data connection** and UART attached; do not switch to physical USB ADB.
 
 ```powershell
-.\adb.exe -s 192.168.x.x:5555 reboot recovery
+..\adb.exe devices -l
+..\adb.exe shell id
 ```
 
-On the tested unit, the UART log showed U-Boot finding `misc` and the `boot-recovery` request on the following boot.
-
-## Critical transport change
-
-Once recovery starts, **do not wait for the old network ADB endpoint to return**. It will not.
-
-Connect the physically soldered USB data connection shown in the board photo and check:
-
-```powershell
-.\adb.exe devices -l
-.\adb.exe shell id
-```
-
-A helper is included:
-
-```powershell
-.\scripts\recovery_usb_adb.ps1 -Adb .\adb.exe -Target 192.168.x.x:5555
-```
-
-The helper requests recovery from the normal-Android target, then deliberately waits for a **non-network** ADB serial so it does not accidentally reconnect to the old TCP target.
+If ADB is not present in Recovery, check the physical USB wiring and host USB driver. UART remains available for the recovery shell, boot logs and eMMC dump; do not perform writes until both paths are verified.
 
 Keep UART connected at the same time. The original raw-eMMC tools use the recovery UART shell.
 
@@ -637,7 +497,7 @@ There is **no requirement to dump or back up the 64 MiB `boot_a`** in this root 
 
 # 15. Verify the correct Magisk target
 
-The test-unit `init_boot_a` supplied with this project review is an Android boot image v4:
+The **V1.2** stock `init_boot_a` used for the original test is an Android boot image v4 (the later V1.3 firmware has a **different** SHA-256):
 
 ```text
 stock init_boot_a.img
@@ -656,7 +516,7 @@ ramdisk use init boot
 
 is the reason `init_boot_a`, not `boot_a`, is the Magisk ramdisk target on this firmware.
 
-You can inspect an image with:
+You can inspect your **own** 8 MiB stock image with:
 
 ```powershell
 python .\scripts\init_boot_inspect.py .\init_boot_a.img
@@ -664,126 +524,158 @@ python .\scripts\init_boot_inspect.py .\init_boot_a.img
 
 ---
 
-# 16. Patch `init_boot_a` with Magisk
+# 16. Patch `init_boot_a` with Magisk — tested offline method (V1.3)
 
-Use an **untouched copy** of your own stock `init_boot_a.img` in Magisk:
+**The Magisk GUI "Select and Patch a File" did not work on the tested Android 14 projector.** It invoked the vendor `com.softwinner.TvdFileManager` and produced no patched image. **Do not rely on the GUI file picker.** The working path is the repository's **ARM32 offline patch scripts**, using the original Magisk v30.7 APK and the device's *own* 8 MiB `init_boot_a`.
 
-```text
-Magisk -> Install -> Select and Patch a File -> init_boot_a.img
-```
+1. Obtain the official **Magisk v30.7 APK** from the [Magisk releases](https://github.com/topjohnwu/Magisk/releases) and save it at `Magisk-v30.7.apk` in the repository root. Install the app on the projector via physical USB ADB:
 
-Copy the resulting `magisk_patched-*.img` back to the PC and inspect/hash it before flashing.
+   ```powershell
+   ..\adb.exe install -r .\Magisk-v30.7.apk
+   ```
 
-The successful patched image from this test session is independently verified as:
+2. From your **own previously extracted stock image**, create the input name expected by the patcher (do not use V1.2 images on V1.3):
 
-```text
-size:           8,388,608 bytes
-header version: 4
-kernel size:    0
-ramdisk size:   3,240,383 bytes
-SHA-256:        c1e41476e9cb34b4f7d1599b31f1f882d7b8257b03623020f5c02529e402bf91
-```
+   ```powershell
+   Copy-Item .\init_boot_a-stock.img .\init_boot_a.img
+   python .\scripts\init_boot_inspect.py .\init_boot_a.img
+   ```
 
-It contains Magisk markers such as:
+   For the tested **V1.3**, the stock image was 8,388,608 bytes, boot header v4, SHA-256 `624a3a0609ecbc7650d8371e73c5542397923f9e0a23c15e85f3342606a0319c`. Other devices can legitimately differ.
 
-```text
-/.magisk
-PREINITDEVICE=
-init-ld.xz
-```
+3. Extract ARM32 patch binaries and `boot_patch.sh` from the local official APK, then run the included batch file while the projector is booted in **normal Android with USB ADB**:
 
-while the stock `init_boot_a.img` does not.
+   ```powershell
+   python .\scripts\extract_magisk_arm32.py .\Magisk-v30.7.apk
+   .\patch_init_boot.cmd
+   ```
 
-Do not download this patched image from another device. Patch **your own** stock `init_boot_a`.
+   `extract_magisk_arm32.py` creates `mp/` with the required `armeabi-v7a` binaries and scripts. `patch_init_boot.cmd` pushes the tools and `init_boot_a.img` to `/data/local/tmp/mp/`, runs Magisk `boot_patch.sh` via BusyBox on-device, and pulls **`magisk_patched_init_boot_a.img`** back to the repository directory. **These scripts do not flash eMMC.** The Magisk app must be installed for final first-boot setup, but its file picker is not used.
 
----
+4. Inspect the output and calculate its **own** SHA-256:
 
-# 17. Enter the Allwinner bootloader / fastboot mode
+   ```powershell
+   python .\scripts\init_boot_inspect.py .\magisk_patched_init_boot_a.img
+   (Get-FileHash .\magisk_patched_init_boot_a.img -Algorithm SHA256).Hash.ToLowerInvariant()
+   ```
 
-From a running Android system:
+   The successfully tested V1.3 patched image was **8,388,608 bytes**, boot v4, ramdisk **3,281,800 bytes**, SHA-256 `e9e9015493ecfa35f77dc5d79363c745033ab9b695a0be47a1b53f0a06898331`, with `/.magisk`, `PREINITDEVICE=`, and `init-ld.xz` markers.
 
-```powershell
-.\adb.exe reboot bootloader
-```
-
-The captured U-Boot flow showed the `bootonce-bootloader` request in `misc`.
-
-On the test unit, the Allwinner USB interface used by the Python flasher appeared as:
-
-```text
-VID:PID = 1f3a:1010
-interface class/subclass/protocol = ff/42/03
-```
-
-This is a different phase from recovery ADB.
+**Never flash another board's patched image or copy its SHA into your own flash command.** Keep the original stock image offline so `init_boot_a` can be restored if needed.
 
 ---
 
-# 18. Dry-run the fastboot flasher first
+# 17. Enter Allwinner USB Fastboot and configure Zadig (Windows)
 
-For the exact patched image from the test session:
+From normal Android over the already authorized **physical USB ADB** connection:
 
 ```powershell
-python .\scripts\awfastboot_flash.py `
-  .\magisk_patched_init_boot_a.img `
+..\adb.exe reboot bootloader
+```
+
+Now the device changes from Android ADB to the **Allwinner fastboot USB interface**: `sunxi`, **VID:PID `1F3A:1010`**, interface `FF/42/03`, Bulk IN `0x81`, OUT `0x02`. ADB commands will not work while in this mode.
+
+On the tested Windows PC, Zadig was needed because PyUSB could not initially access `sunxi` with the existing driver. **Use Zadig on exactly this USB ID, not on the normal Android ADB interface**:
+
+1. Open [Zadig](https://zadig.akeo.ie/), select **Options → List All Devices** if necessary, then choose **sunxi**.
+2. **Verify VID `1F3A`, PID `1010`.** Choose **libusb-win32** as the replacement driver and click **Replace Driver**. The tested screenshot showed `WinUSB` → `libusb-win32`.
+3. On Windows PowerShell, verify both the Python backend and USB device enumeration:
+
+   ```powershell
+   python -c "import usb.backend.libusb0 as b; print(b.get_backend())"
+   python -c "import usb.core; print(usb.core.find(idVendor=0x1F3A, idProduct=0x1010))"
+   ```
+
+   Expected: a `usb.backend.libusb0._LibUSB` object and a USB device descriptor containing `1f3a:1010`, `sunxi`, and `Android Bootloader Interface`. If `None` is returned, **do not flash**; the driver/backend is not ready.
+
+![Zadig: sunxi VID 1F3A PID 1010, WinUSB to libusb-win32](images/h723-6621-v1.3-zadig-libusb-win32.webp)
+
+This change applies to the **bootloader's USB interface**; it is not an instruction to replace the working Android ADB driver. Host drivers can differ, but this is the configuration actually used for the successful V1.3 flash.
+
+---
+
+# 18. Test the fastboot client before writing (dry-run)
+
+Do **not** add `--yes` until the dry-run passes. In PowerShell, generate the SHA-256 from **your exact patched file**, then run the repository's hash-gated fastboot script:
+
+```powershell
+$imageSha = (Get-FileHash .\magisk_patched_init_boot_a.img -Algorithm SHA256).Hash.ToLowerInvariant()
+python .\scripts\awfastboot_flash.py .\magisk_patched_init_boot_a.img `
   --partition init_boot_a `
   --size 8388608 `
-  --sha256 c1e41476e9cb34b4f7d1599b31f1f882d7b8257b03623020f5c02529e402bf91
+  --sha256 $imageSha
 ```
 
-Without `--yes`, the script:
+The verified V1.3 run reported:
 
-- verifies the local image hash/size;
-- finds `1f3a:1010`;
-- finds the `ff/42/03` interface;
-- sends `getvar:max-download-size`;
-- **does not flash anything**.
+```text
+Image size: 8388608
+> getvar:max-download-size
+< 'OKAY0x02000000'
+DRY RUN PASS. Would flash init_boot_a. Nothing was written.
+```
 
-For your own newly generated Magisk image, replace `--sha256` with the SHA-256 of that exact file.
+The script confirms the image size/hash, discovers `sunxi 1f3a:1010`, communicates over `ff/42/03` and **does not modify firmware** in dry-run.
 
 ---
 
-# 19. Flash `init_boot_a`
+# 19. Flash only `init_boot_a`
 
-After the dry-run passes:
+**Only after `DRY RUN PASS`**, add `--yes` to the same command. Keep the projector powered throughout:
 
 ```powershell
-python .\scripts\awfastboot_flash.py `
-  .\magisk_patched_init_boot_a.img `
+$imageSha = (Get-FileHash .\magisk_patched_init_boot_a.img -Algorithm SHA256).Hash.ToLowerInvariant()
+python .\scripts\awfastboot_flash.py .\magisk_patched_init_boot_a.img `
   --partition init_boot_a `
   --size 8388608 `
-  --sha256 <SHA256-OF-YOUR-EXACT-PATCHED-IMAGE> `
+  --sha256 $imageSha `
   --yes
 ```
 
-The protocol sequence used in the successful session was:
+Successful V1.3 fastboot transcript:
 
 ```text
-getvar:max-download-size
-download:00800000
-<8 MiB image data>
-flash:init_boot_a
+> getvar:max-download-size
+< 'OKAY0x02000000'
+> download:00800000
+< 'DATA00800000'
+8388608/8388608
+< 'OKAY'
+> flash:init_boot_a
+< 'OKAY'
+FLASH OK. No reboot command was sent.
 ```
 
-The script deliberately sends **no reboot command** after the flash.
-
-The session flasher used for this step is preserved under `reference/reconstructed/awfastboot_flash_initboot.py`. `reference/session-scripts/awfastboot.py` is a read-only fastboot probe and is not the flash writer.
+**Only `init_boot_a` is written. Never flash or back up the 64 MiB `boot_a` for this procedure.** The script does **not** reboot the projector; reboot it manually after the confirmed `FLASH OK`.
 
 ---
 
-# 20. First rooted boot and verification
+# 20. Open Magisk, finish additional setup, reboot — then verify root
 
-Boot Android normally and check:
+**Flashing the patched image is not the last step. On the V1.3 test, `su` was still missing immediately after the first Android boot.** The working final procedure was:
 
-```powershell
-.\adb.exe devices
-.\adb.exe shell "ps -A | grep magisk"
-.\adb.exe shell "su -c 'id'"
+1. After flashing completes and Android boots, **open the Magisk application on the projector**.
+2. The application displays **"Requires additional setup"** and asks **"Do you want to proceed and reboot?"** Tap **OK**. **Allow Magisk to complete this additional installation and reboot the projector.**
+3. Once Android starts again, connect physical USB ADB and run:
+
+   ```powershell
+   ..\adb.exe devices -l
+   ..\adb.exe shell "su -c 'id'"
+   ```
+
+4. The projector will show **Magisk → Superuser request** for **`[Shared UID] Shell / com.android.shell`**. Choose the desired authorization duration (on the tested unit, **Forever**) and tap **GRANT**. Run the same `su` command again if the prompt interrupted the command.
+
+![Magisk v30.7 requires additional setup and a reboot](images/h723-6621-v1.3-magisk-additional-setup.jpg)
+
+![Magisk grants superuser permission to Android shell](images/h723-6621-v1.3-magisk-superuser-authorization.jpg)
+
+The confirmed successful V1.3 result was:
+
+```text
+uid=0(root) gid=0(root) groups=0(root) context=u:r:magisk:s0
 ```
 
-The successful board showed a root-owned `magiskd` process and `su -c id` returned UID 0.
-
-This confirms that the final `su` seen later in the HDMI/capture work was the result of the completed Magisk setup, not proof that the stock firmware shipped with factory root.
+**This root result is only achieved after the Magisk additional setup/reboot and Superuser grant.** A missing `su` immediately after flashing is not, by itself, proof that flashing failed.
 
 ---
 
@@ -813,47 +705,15 @@ If a Secure Storage read-back fails, **do not reboot**. If a later boot image fa
 Before reusing any write command on a similar board:
 
 1. get UART working;
-2. boot recovery and use physical USB ADB, not network ADB;
+2. boot recovery and use physical USB ADB, not physical USB ADB;
 3. dump/validate its own GPT;
 4. compare partition names/sizes;
-5. dump its own stock boot images;
+5. dump its own **stock `init_boot_a`** (8 MiB); no `boot_a` dump is required;
 6. read LBA 12288 only as a read-only Secure Storage probe;
 7. require the Secure Storage parser to validate the structure;
 8. create new hashes from that board;
 9. patch its own `init_boot_a` with Magisk;
 10. never flash an image from the H723-6621-V1.2 test unit merely because the PCB looks similar.
-
----
-
-# 23. Code review performed for this public version
-
-The public scripts are **not** a blind copy of the first experimental scripts. They were reviewed and hardened for publication.
-
-Changes include:
-
-- GPT parser now validates both GPT CRCs, not only the `EFI PART` signature;
-- UART dumper rejects unexpected non-Base64 data inside a transfer instead of silently filtering it;
-- Secure Storage parser checks unique names, bounds, CRCs, backup copies **and exact unlock values**;
-- Secure Storage patcher refuses an existing unlock item with an unexpected payload;
-- public writer requires explicit source/candidate SHA-256 values and starts read-only;
-- public writer calculates the changed blocks and still commits item blocks before backup map and primary map;
-- fastboot writer requires an explicit SHA-256 and is dry-run by default;
-- AVB log checker analyzes the last SBOOT cycle in a combined UART log;
-- raw firmware images/logs are excluded by `.gitignore` to reduce accidental publication of device-specific data;
-- the README/log examples omit device serial numbers and Wi-Fi/Bluetooth MAC addresses.
-
-Original session scripts are preserved under [`reference/session-scripts/`](reference/session-scripts/). Reconstructed utilities are kept separately under [`reference/reconstructed/`](reference/reconstructed/). For new work, use the hardened tools under [`scripts/`](scripts/).
-
-Automated unit tests cover GPT CRC validation and Secure Storage validation/patch behavior. A GitHub Actions workflow runs Python syntax checks and unit tests on every push/PR.
-
-
----
-
-# 24. Reproducibility data
-
-Hashes and metadata for the verified binary captures used by this guide are in [`docs/verified-artifacts.md`](docs/verified-artifacts.md).
-
-Raw firmware images are **not** committed. This is intentional: a public guide should teach people to dump and patch their own firmware rather than distribute board-specific boot images.
 
 ---
 
@@ -868,6 +728,7 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 │   ├── README.md
 │   ├── h723-6621-v1.2-uart-location.jpg
 │   ├── h723-6621-v1.2-usb-adb-wiring.jpg
+│   ├── h723-6621-v1.3-zadig-libusb-win32.webp
 │   ├── h723-6621-v1.3-open-mainboard-cp2102.jpg
 │   ├── h723-6621-v1.3-mainboard-uart-wiring-closeup.jpg
 │   └── ... 10 other V1.3 images (see images/README.md)
@@ -883,7 +744,7 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 │   ├── gpt_inspect.py
 │   ├── extract_magisk_arm32.py
 │   ├── init_boot_inspect.py
-│   ├── recovery_usb_adb.ps1
+│   ├── recovery_usb_adb.ps1 (legacy helper; not used by USB-only procedure)
 │   ├── secure_storage_tool.py
 │   ├── secure_storage_write_uart.py
 │   ├── sha256_manifest.ps1

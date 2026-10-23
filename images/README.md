@@ -2,10 +2,14 @@
 
 ## V1.2 (original documented hardware)
 
-- `h723-6621-v1.2-uart-location.jpg` — original photo marking the UART area.
-- `h723-6621-v1.2-usb-adb-wiring.jpg` — original recovery USB-ADB and power wiring.
+- `h723-6621-v1.2-uart-location.jpg` — correctly shows the serial UART pads; this image was formerly named USB ADB.
+- `h723-6621-v1.2-usb-adb-wiring.jpg` — correctly shows USB data soldering and labeled +5 V/GND points; this image was formerly named UART.
 
-Both original V1.2 photos are retained without changes. Neither photo proves GND/TX/RX pin order.
+The two V1.2 image filenames are retained but their swapped contents were corrected after inspecting the labeled UART and USB-ADB areas. Neither photo proves GND/TX/RX pin order.
+
+## Zadig for V1.3 Allwinner USB Fastboot
+
+- `h723-6621-v1.3-zadig-libusb-win32.webp` — actual Windows screenshot showing sunxi 1F3A:1010 and the selection of libusb-win32 in Zadig. This is **only the bootloader interface**; do not replace the Android ADB driver.
 
 ## V1.3 — 23 October 2026
 
