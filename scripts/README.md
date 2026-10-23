@@ -3,7 +3,7 @@
 Use the files in this directory for new/repeated work. These are publication-hardened versions of the workflow: destructive actions are opt-in, hashes/CRCs are checked, and board-specific assumptions must be supplied explicitly where practical.
 
 - `uart_log_capture.py` — capture UART output to a file.
-- `uart_dump.py` — strict read-only raw eMMC dump through the recovery UART shell. An improved progress/cancellation variant is provided separately in the V1.3 update bundle for review before replacing this stable version.
+- `uart_dump.py` — strict read-only raw eMMC dump through the recovery UART shell. Now includes progress/ETA, shell readiness verification, and remote Ctrl+C recovery on interruption; no 64 MiB boot_a dump is needed.
 - `gpt_inspect.py` — validate primary GPT CRCs and print partition LBAs.
 - `secure_storage_tool.py` — validate/patch the observed Allwinner Secure Storage structure.
 - `secure_storage_write_uart.py` — hash-gated, read-back-verified Secure Storage writer; read-only unless `--write`.

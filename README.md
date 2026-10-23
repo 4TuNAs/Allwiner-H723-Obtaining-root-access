@@ -7,6 +7,12 @@ A reproducible hardware/software guide based on a real rooting session on an And
 > [!CAUTION]
 > This procedure includes raw eMMC writes. A wrong LBA, a wrong firmware image, or a power loss at the wrong moment can brick the board. The public scripts in this repository are deliberately conservative: they validate hashes/CRCs, default to read-only/dry-run behavior, and do not reboot automatically after critical writes.
 
+## Tested V1.3 board — hardware overview
+
+![H723-6621-V1.3 mainboard with connected CP2102 UART adapter](images/photo_6_2026-10-23_22-26-02.jpg)
+
+The V1.3 projector was opened and the CP2102 adapter connected during the successful rooting session. See the [V1.3 verified step-by-step report](docs/h723-6621-v1.3-verified-root.md) for close-ups and photographs of recovery, orange boot, Magisk setup, and the Superuser prompt. Do **not** infer UART pin ordering from photo cable colors.
+
 ## Tested board — V1.2 photos (V1.3 in separate report)
 
 ### UART location
@@ -734,9 +740,7 @@ Before the first destructive write, keep these offline:
 ```text
 gpt34.bin
 env_a-stock.img
-boot_a-stock.img
-vendor_init_boot_a-stock.img
-misc-stock.img
+init_boot_a-stock.img
 vbmeta_a-stock.img
 h723-secure-storage-original.bin
 SHA256SUMS-stock.txt
