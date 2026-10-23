@@ -7,6 +7,39 @@ A reproducible hardware/software guide based on a real rooting session on an And
 > [!CAUTION]
 > This procedure includes raw eMMC writes. A wrong LBA, a wrong firmware image, or a power loss at the wrong moment can brick the board. The public scripts in this repository are deliberately conservative: they validate hashes/CRCs, default to read-only/dry-run behavior, and do not reboot automatically after critical writes.
 
+# 1. Enable Developer Tools and USB debugging on the projector (before ADB)
+
+**Start here on stock Android. USB debugging is initially OFF, so ADB cannot work yet.** Do not start with `adb devices` or `adb reboot recovery`.
+
+1. Open **Google Play** on the projector, find **Developer Tools** by **Roy Solberg**, install it and launch it.
+
+   ![Install Developer Tools by Roy Solberg](images/h723-6621-v1.3-developer-tools-play-store.jpg)
+
+2. In the app choose **Developer options** (curly-braces icon). This opens Android's developer settings, which may be missing from the projector's regular Settings menu.
+
+   ![Open Developer options in Developer Tools](images/h723-6621-v1.3-developer-options-menu.jpg)
+
+3. Under **Debugging**, turn on both **USB debugging** and **USB0 device mode enable** (as labeled in this tested H723 firmware). They are two separate switches.
+
+   ![Enable USB debugging and USB0 device mode](images/h723-6621-v1.3-usb-debugging-enabled.jpg)
+
+4. Connect the projector's **USB device/data interface** to the Windows PC. Our test board needed the **physical USB data wiring shown below**; charging-only wiring cannot carry ADB. Check the board pinout and do not connect two separate +5 V sources together.
+5. When prompted **"Allow USB debugging?"**, select **Allow** to authorize the PC RSA key. Use **Always allow from this computer** only on a trusted PC.
+
+   [Photo: allow USB debugging on the projector](images/h723-6621-v1.3-adb-rsa-authorization.jpg) (original RSA fingerprint visible).
+
+6. **Only now**, on the Windows PC, run the first ADB check (adjust the path to `adb.exe` as needed):
+
+   ```powershell
+   .\adb.exe devices -l
+   ```
+
+   The device must appear with state **`device`**. If it shows `unauthorized`, confirm the prompt on the projector; if the list is empty, check the physical USB data connection, USB0 device mode and host ADB driver.
+
+**All subsequent ADB commands assume the steps above are complete.** Recovery requires physical USB data on this board; the normal Android network ADB endpoint does not persist into recovery.
+
+---
+
 ## Tested V1.3 board — hardware overview
 
 ![H723-6621-V1.3 mainboard with connected CP2102 UART adapter](images/h723-6621-v1.3-open-mainboard-cp2102.jpg)
@@ -72,7 +105,16 @@ The test unit reported an H723/sun50iw15p1 platform, Android 14/API 34 and an A/
 The successful chain was:
 
 ```text
-stock Android
+stock Android (USB debugging initially OFF)
+    |
+    v
+Google Play -> Developer Tools (Roy Solberg) -> Developer options
+    |
+    v
+USB debugging ON + USB0 device mode ON
+    |
+    v
+Physical USB data -> allow PC RSA fingerprint -> authorized ADB
     |
     | adb reboot recovery
     v
@@ -122,7 +164,7 @@ Original session scripts, reconstructed utilities, and publication-hardened tool
 
 ---
 
-# 1. Host setup
+# 2. Host setup
 
 Examples use Windows PowerShell because that is how the board was tested.
 
@@ -144,7 +186,7 @@ Do not start any raw-write step until you have working UART access and verified 
 
 ---
 
-# 2. Start in normal Android
+# 3. Start in normal Android
 
 Check ADB:
 
@@ -152,7 +194,7 @@ Check ADB:
 .\adb.exe devices -l
 ```
 
-Network ADB is acceptable **at this stage**. For example, if your normal Android ADB target is an IP address, you can still use it to request recovery.
+**Prerequisite:** complete step 1 on the projector first. On the tested V1.3 board, the USB debugging toggle alone is insufficient: enable USB0 device mode, connect the USB data interface and authorize the PC RSA key. If normal Android **already has** a working TCP ADB endpoint, it may be used here instead; USB debugging does **not** automatically enable TCP ADB.
 
 Capture basic properties before changing anything:
 
@@ -178,7 +220,7 @@ Use your actual COM port.
 
 ---
 
-# 3. Enter recovery correctly
+# 4. Enter recovery correctly
 
 Request recovery from the currently running Android:
 
@@ -217,7 +259,7 @@ Keep UART connected at the same time. The original raw-eMMC tools use the recove
 
 ---
 
-# 4. Discover the partition table instead of guessing
+# 5. Discover the partition table instead of guessing
 
 Do not start with `mmcblk0p5`, `p9`, etc. Those numbers came from **this** unit's GPT and must be rediscovered on another board/firmware.
 
@@ -270,7 +312,7 @@ python .\scripts\gpt_inspect.py .\gpt34.bin --dump-plan COM5
 
 ---
 
-# 5. Why these partitions were selected
+# 6. Why these partitions were selected
 
 The choice was not based only on Android conventions.
 
@@ -302,7 +344,7 @@ See [`docs/boot-chain.md`](docs/boot-chain.md).
 
 ---
 
-# 6. Back up the required **small** partitions — not `boot_a`
+# 7. Back up the required **small** partitions — not `boot_a`
 
 Work from your **own validated GPT**, after recovery UART is working and before any write. The root method modifies Secure Storage and `init_boot_a`; it does **not** modify the 64 MiB kernel-side `boot_a` image. **Do not dump `boot_a` over 115200-baud UART for this guide.**
 
@@ -338,7 +380,7 @@ The updated UART dumper shows a progress/ETA display and attempts to interrupt a
 
 ---
  
-# 7. Confirm the original LOCKED/GREEN state
+# 8. Confirm the original LOCKED/GREEN state
 
 Before the Secure Storage modification, the captured U-Boot log showed that the two unlock items were absent:
 
@@ -367,7 +409,7 @@ This establishes the pre-write baseline.
 
 ---
 
-# 8. Dump Allwinner Secure Storage
+# 9. Dump Allwinner Secure Storage
 
 On the tested H723-6621-V1.2 firmware, the validated Secure Storage region was:
 
@@ -413,7 +455,7 @@ The public verifier checks:
 
 ---
 
-# 9. Build the unlock candidate
+# 10. Build the unlock candidate
 
 Create the candidate from **your own original dump**:
 
@@ -449,7 +491,7 @@ Do not expect the same hashes from a different legitimate firmware. The values a
 
 ---
 
-# 10. Audit the live Secure Storage before writing
+# 11. Audit the live Secure Storage before writing
 
 The public writer is read-only unless `--write` is supplied.
 
@@ -496,7 +538,7 @@ new item primary/backup copies
 
 ---
 
-# 11. Write the unlock candidate
+# 12. Write the unlock candidate
 
 Only after the read-only audit matches exactly:
 
@@ -529,7 +571,7 @@ The original session writer is preserved in [`reference/session-scripts/h723_sec
 
 ---
 
-# 12. Reboot and verify GREEN -> ORANGE
+# 13. Reboot and verify GREEN -> ORANGE
 
 After the complete Secure Storage read-back passes, keep UART capture running and reboot manually.
 
