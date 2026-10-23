@@ -1,13 +1,13 @@
-# Allwinner H723 Android root access — H723-6621-V1.2
+# Allwinner H723 Android root access — H723-6621-V1.2 / V1.3
 
 A reproducible hardware/software guide based on a real rooting session on an Android board built around **Allwinner H723 / sun50iw15p1**.
 
-The **tested PCB is H723-6621-V1.2**. A board sold/marked as **H723-CY-4D308** looks very similar, but it has **not** been verified by this repository. Treat it as a different target until its GPT, boot layout and Secure Storage contents have been read and checked.
+**Successfully tested hardware: H723-6621-V1.2 and H723-6621-V1.3.** This original guide records the V1.2 session; the [independently verified V1.3 rooting session](docs/h723-6621-v1.3-verified-root.md) documents its own firmware hashes, Magisk v30.7 offline patch method, Windows USB driver troubleshooting and final root. **Do not reuse firmware images or Secure Storage hashes between boards.** A board sold/marked as **H723-CY-4D308** looks very similar, but it has **not** been verified by this repository. Treat it as a different target until its GPT, boot layout and Secure Storage contents have been read and checked.
 
 > [!CAUTION]
 > This procedure includes raw eMMC writes. A wrong LBA, a wrong firmware image, or a power loss at the wrong moment can brick the board. The public scripts in this repository are deliberately conservative: they validate hashes/CRCs, default to read-only/dry-run behavior, and do not reboot automatically after critical writes.
 
-## Tested board
+## Tested board — V1.2 photos (V1.3 in separate report)
 
 ### UART location
 
@@ -59,7 +59,7 @@ recovery
 read and validate GPT
     |
     v
-back up boot_a / init_boot_a / vendor_boot_a / vbmeta_a / misc / env_a
+back up init_boot_a / env_a / vbmeta_a and required small regions
     |
     v
 read Allwinner Secure Storage
@@ -269,7 +269,7 @@ pubkey vbmeta_a valid
 Therefore:
 
 - active slot was `_a`;
-- `boot_a` is the kernel-side boot image and was backed up as a recovery/reference image;
+- `boot_a` contains the kernel-side image; **it is not part of the root-modification or required backup workflow**;
 - the generic ramdisk came from `init_boot_a`, so that is the correct Magisk target;
 - `vbmeta_a`, `vendor_boot_a`, `misc` and `env_a` are important recovery/reference backups even though the final Magisk flash only wrote `init_boot_a`.
 
@@ -277,44 +277,11 @@ See [`docs/boot-chain.md`](docs/boot-chain.md).
 
 ---
 
-# 6. Extract the stock boot images and back up the partitions
+# 6. Back up the required **small** partitions — not `boot_a`
 
-This is the point where the boot images are actually copied from eMMC to the PC. Do this **after** reading/validating the GPT and **before** any Secure Storage or boot-image modification.
+Work from your **own validated GPT**, after recovery UART is working and before any write. The root method modifies Secure Storage and `init_boot_a`; it does **not** modify the 64 MiB kernel-side `boot_a` image. **Do not dump `boot_a` over 115200-baud UART for this guide.**
 
-On this board there are two different images that are easy to confuse:
-
-- `boot_a` — 64 MiB kernel-side boot image;
-- `init_boot_a` — 8 MiB Android boot v4 image containing the generic ramdisk. **This is the image later patched by Magisk.**
-
-The tested GPT gives:
-
-```text
-boot_a:      first LBA 205824, sectors 131072
-init_boot_a: first LBA 599040, sectors 16384
-```
-
-## 6.1 Extract `boot_a`
-
-Using the publication-hardened dumper:
-
-```powershell
-python .\scripts\uart_dump.py COM5 `
-  --skip 205824 `
-  --count 131072 `
-  --out boot_a-stock.img
-```
-
-The original session tool that performs the same `dd if=/dev/block/mmcblk0 ... | base64` transfer is preserved as `reference/session-scripts/uartdump.py`.
-
-Expected size for this tested GPT:
-
-```text
-131072 * 512 = 67108864 bytes = 64 MiB
-```
-
-## 6.2 Extract the stock `init_boot_a` used for Magisk
-
-This is the missing transition between partition discovery and the later Magisk step:
+### 6.1 Extract `init_boot_a` (8 MiB)
 
 ```powershell
 python .\scripts\uart_dump.py COM5 `
@@ -323,66 +290,29 @@ python .\scripts\uart_dump.py COM5 `
   --out init_boot_a-stock.img
 ```
 
-Expected size:
+The expected size from the tested GPT is `8,388,608` bytes. The original **V1.2** image SHA-256 is `2d0b2683e03e3edea8e5e47426e23088e0f0da112f2c597ac84e6e400873dca0`. For the independently tested **V1.3**, the stock SHA-256 is `624a3a0609ecbc7650d8371e73c5542397923f9e0a23c15e85f3342606a0319c`. **Your own image may differ; verify its header, size and computed hash.**
 
-```text
-16384 * 512 = 8388608 bytes = 8 MiB
-```
-
-For the tested unit, the extracted stock image was verified as:
-
-```text
-SHA-256:
-2d0b2683e03e3edea8e5e47426e23088e0f0da112f2c597ac84e6e400873dca0
-```
-
-Keep `init_boot_a-stock.img` untouched as the recovery copy. Create the working input for Magisk from that verified dump:
+Keep the untouched verified stock backup, then make a copy for patching:
 
 ```powershell
 Copy-Item .\init_boot_a-stock.img .\init_boot_a.img
 Get-FileHash .\init_boot_a.img -Algorithm SHA256
 ```
 
-The copy must still be exactly 8,388,608 bytes and, on the tested unit, must still have the SHA-256 shown above.
+### 6.2 Back up only other required small regions
 
-## 6.3 Back up the remaining relevant partitions
-
-Do the same for at least:
-
-```text
-env_a
-vendor_boot_a
-misc
-vbmeta_a
-```
-
-Use the LBAs and sector counts printed from **your own GPT**. You can generate the read-only commands automatically:
+Save `env_a`, `vbmeta_a`, and the 128 KiB Secure Storage region at the read-only discovery stage, using the exact verified offsets from your board. Optional small partitions can be saved for recovery if necessary. For the GPT-based read-only dump plan:
 
 ```powershell
 python .\scripts\gpt_inspect.py .\gpt34.bin --dump-plan COM5
 ```
 
-At the end of this stage you should have at minimum:
+**Do not execute every generated dump command blindly**: the plan can include the 64 MiB `boot_a` partition, which is deliberately excluded here. Keep `init_boot_a-stock.img`, `env_a-stock.img`, `vbmeta_a-stock.img`, `h723-secure-storage-original.bin`, and `gpt34.bin` offline with verified hashes.
 
-```text
-boot_a-stock.img
-init_boot_a-stock.img
-vendor_boot_a-stock.img
-vbmeta_a-stock.img
-misc-stock.img
-env_a-stock.img
-```
-
-Generate a hash manifest:
-
-```powershell
-.\scripts\sha256_manifest.ps1 -Path . -OutFile .\SHA256SUMS-stock.txt
-```
-
-Store a second copy somewhere that will not be modified during the experiment. Do not continue until the 8 MiB `init_boot_a` dump has been verified, because that exact image is the source for the Magisk patch later in this guide.
+The updated UART dumper shows a progress/ETA display and attempts to interrupt a stale remote `dd | base64` process on Ctrl+C. If recovery cannot be confirmed, restore a responsive recovery shell **before** another attempt.
 
 ---
-
+ 
 # 7. Confirm the original LOCKED/GREEN state
 
 Before the Secure Storage modification, the captured U-Boot log showed that the two unlock items were absent:
@@ -641,7 +571,7 @@ androidboot.veritymode=enforcing
 
 continue with the stock `init_boot_a` image. A separate `boot_a` kernel binary patch is not part of the documented root procedure.
 
-`boot_a` should still be backed up before any experiment because it contains the kernel-side boot image, but the documented root path below does not ask the reader to modify it.
+There is **no requirement to dump or back up the 64 MiB `boot_a`** in this root workflow. Only `init_boot_a` is the Magisk target.
 
 ---
 
@@ -805,8 +735,7 @@ Before the first destructive write, keep these offline:
 gpt34.bin
 env_a-stock.img
 boot_a-stock.img
-vendor_boot_a-stock.img
-init_boot_a-stock.img
+vendor_init_boot_a-stock.img
 misc-stock.img
 vbmeta_a-stock.img
 h723-secure-storage-original.bin
@@ -911,8 +840,12 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 
 ## Current status
 
-**Verified on H723-6621-V1.2:** partition discovery, Secure Storage unlock flags, `GREEN -> ORANGE`, `init_boot_a` Magisk patch characteristics, Allwinner USB fastboot path, and final Magisk root.
+**Verified on H723-6621-V1.2 and V1.3:** partition discovery, Secure Storage unlock flags, `GREEN -> ORANGE`, `init_boot_a` Magisk patch, Allwinner USB fastboot and final Magisk root. [V1.3 evidence and steps](docs/h723-6621-v1.3-verified-root.md).
 
 Original session scripts are preserved under `reference/session-scripts/`; reconstructed utilities are under `reference/reconstructed/`; publication-hardened tools remain under `scripts/`.
 
 **Not tested:** H723-CY-4D308. It is listed only as a visually similar board and must be independently validated before any writes.
+
+## Next step: custom launcher
+
+The post-root launcher development project is [XGODY-ADT3-New-Launcher](https://github.com/4TuNAs/XGODY-ADT3-New-Launcher). Rooting and replacement launcher development are separate projects.
