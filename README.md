@@ -9,9 +9,28 @@ A reproducible hardware/software guide based on a real rooting session on an And
 
 ## Tested V1.3 board — hardware overview
 
-![H723-6621-V1.3 mainboard with connected CP2102 UART adapter](images/photo_6_2026-10-23_22-26-02.jpg)
+![H723-6621-V1.3 mainboard with connected CP2102 UART adapter](images/h723-6621-v1.3-open-mainboard-cp2102.jpg)
 
 The V1.3 projector was opened and the CP2102 adapter connected during the successful rooting session. See the [V1.3 verified step-by-step report](docs/h723-6621-v1.3-verified-root.md) for close-ups and photographs of recovery, orange boot, Magisk setup, and the Superuser prompt. Do **not** infer UART pin ordering from photo cable colors.
+
+### V1.3 step photos
+
+| Stage | Photo |
+|---|---|
+| Front cover / grille removed | [View photo](images/h723-6621-v1.3-front-grille-removed.jpg) |
+| Opened mainboard and CP2102 UART adapter | [View photo](images/h723-6621-v1.3-open-mainboard-cp2102.jpg) |
+| UART wiring / PCB close-up | [View photo](images/h723-6621-v1.3-mainboard-uart-wiring-closeup.jpg) |
+| Developer Tools app | [View photo](images/h723-6621-v1.3-developer-tools-play-store.jpg) |
+| Developer options menu | [View photo](images/h723-6621-v1.3-developer-options-menu.jpg) |
+| USB debugging and USB device mode | [View photo](images/h723-6621-v1.3-usb-debugging-enabled.jpg) |
+| ADB computer authorization (original RSA fingerprint visible) | [View photo](images/h723-6621-v1.3-adb-rsa-authorization.jpg) |
+| Android Recovery | [View photo](images/h723-6621-v1.3-android-recovery-menu.jpg) |
+| Android boot logo | [View photo](images/h723-6621-v1.3-android-boot-logo.jpg) |
+| Unlocked bootloader warning (ORANGE) | [View photo](images/h723-6621-v1.3-unlocked-bootloader-warning.jpg) |
+| Magisk additional setup prompt | [View photo](images/h723-6621-v1.3-magisk-additional-setup.jpg) |
+| Magisk Superuser authorization | [View photo](images/h723-6621-v1.3-magisk-superuser-authorization.jpg) |
+
+The USB authorization screenshot is retained in its original form, including the RSA public-key fingerprint, as requested. The screenshots document the tested V1.3 unit. [Photo index and descriptions](images/README.md).
 
 ## Tested board — V1.2 photos (V1.3 in separate report)
 
@@ -809,11 +828,17 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 .
 ├── README.md
 ├── requirements.txt
+├── patch_init_boot.cmd
 ├── images/
+│   ├── README.md
 │   ├── h723-6621-v1.2-uart-location.jpg
-│   └── h723-6621-v1.2-usb-adb-wiring.jpg
+│   ├── h723-6621-v1.2-usb-adb-wiring.jpg
+│   ├── h723-6621-v1.3-open-mainboard-cp2102.jpg
+│   ├── h723-6621-v1.3-mainboard-uart-wiring-closeup.jpg
+│   └── ... 10 other V1.3 images (see images/README.md)
 ├── docs/
 │   ├── boot-chain.md
+│   ├── h723-6621-v1.3-verified-root.md
 │   ├── session-script-inventory.md
 │   ├── partition-map.md
 │   └── verified-artifacts.md
@@ -821,6 +846,7 @@ Raw firmware images are **not** committed. This is intentional: a public guide s
 │   ├── avb_log_check.py
 │   ├── awfastboot_flash.py
 │   ├── gpt_inspect.py
+│   ├── extract_magisk_arm32.py
 │   ├── init_boot_inspect.py
 │   ├── recovery_usb_adb.ps1
 │   ├── secure_storage_tool.py
