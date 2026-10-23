@@ -22,3 +22,15 @@ These came from the exact H723-6621-V1.2 test unit and are deliberately hard-cod
 - Successful commit order in that session: `8, 9, 10, 11, 1, 0`
 
 Do not use these hashes as a compatibility test for a different board. A different legitimate firmware image is expected to have different hashes.
+
+## H723-6621-V1.3 independently verified (23 October 2026)
+
+| Artifact | Size | SHA-256 | Notes |
+|---|---:|---|---|
+| `gpt34.bin` | 17,408 B | `b852badd4d159cdca67d3bf2acd86feaa0a18bffe87a310666206d4fb8843e05` | Both GPT CRCs matched V1.2, 29 partitions |
+| `init_boot_a-stock.img` | 8,388,608 B | `624a3a0609ecbc7650d8371e73c5542397923f9e0a23c15e85f3342606a0319c` | Boot header v4, ramdisk 3,346,955 B |
+| `magisk_patched_init_boot_a.img` | 8,388,608 B | `e9e9015493ecfa35f77dc5d79363c745033ab9b695a0be47a1b53f0a06898331` | Magisk 30.7 offline ARM32 patch, ramdisk 3,281,800 B |
+| Secure Storage original | 131,072 B | `277f5e0163c2bae1f26975215543c3c9998f8b2b9f851a030dcf154d12e7bedc` | LBA 12288; parser PASS |
+| Secure Storage unlocked | 131,072 B | `3ce01845d4d90e3322d4fb03939d1fd7996f7ad4af2ec096716a39e4df9612c6` | Write and full read-back PASS; commit order 8,9,10,11,1,0 |
+
+**No `boot_a` dump was made on V1.3; it is not needed for the root workflow.** See [V1.3 root session](h723-6621-v1.3-verified-root.md).
