@@ -99,7 +99,7 @@ Request recovery from the currently running Android:
 ..\adb.exe reboot recovery
 ```
 
-The tested board enters Recovery on reboot. Keep the **physical USB data connection** and UART attached; do not switch to physical USB ADB.
+The tested board enters Recovery on reboot. Keep **both physical connections** attached: USB ADB for Recovery access and UART (115200 8N1) for the console. No transport change is required.
 
 ```powershell
 ..\adb.exe devices -l
